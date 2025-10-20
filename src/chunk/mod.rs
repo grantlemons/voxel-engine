@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Location, block::Block};
+use crate::{AbsoluteLocation, block::Block};
 
 mod chunk_load;
 mod lazy_block;
@@ -14,11 +14,8 @@ pub enum Biome {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Chunk<F: Fn(&Location, &Biome) -> Block + Clone> {
-    /// Outer array is Z
-    /// Next is X
-    /// Next is Y
-    /// All in all blocks[Z][X][Y]
+pub struct Chunk<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> {
+    pub location: AbsoluteLocation,
     pub load_state: chunk_load::LoadState<F>,
     pub biome: Biome,
 }

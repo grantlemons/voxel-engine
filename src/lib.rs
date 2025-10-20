@@ -1,4 +1,7 @@
+use glam::UVec3;
+
 pub mod block;
 pub mod chunk;
 
-pub type Location = (usize, usize, usize);
+pub type ChunkLocation = UVec3;
+pub type AbsoluteLocation = UVec3;

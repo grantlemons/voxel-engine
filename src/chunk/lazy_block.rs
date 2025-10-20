@@ -2,16 +2,16 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Location, block::Block, chunk::Biome};
+use crate::{AbsoluteLocation, block::Block, chunk::Biome};
 
 #[derive(Deserialize, Serialize, Clone)]
-pub enum LazyBlock<F: Fn(&Location, &Biome) -> Block + Clone> {
-    Ungenerated(F, Location, Biome),
+pub enum LazyBlock<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> {
+    Ungenerated(F, AbsoluteLocation, Biome),
     GeneratedRough(Block, Box<Self>),
     Generated(Block, Box<Self>),
 }
 
-impl<F: Fn(&Location, &Biome) -> Block + Clone> LazyBlock<F> {
+impl<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> LazyBlock<F> {
     fn get_generated(&self) -> &Block {
         match self {
             Self::Ungenerated(..) => panic!("get_generated called on ungenerated block"),
@@ -45,7 +45,10 @@ impl<F: Fn(&Location, &Biome) -> Block + Clone> LazyBlock<F> {
                 *self = Self::Generated(res, Box::new(self.clone()));
                 self.get_generated()
             }
-            Self::GeneratedRough(block, ..) => block,
+            Self::GeneratedRough(..) => {
+                self.reset();
+                self.force_update()
+            }
             Self::Generated(block, ..) => block,
         }
     }
@@ -59,7 +62,7 @@ impl<F: Fn(&Location, &Biome) -> Block + Clone> LazyBlock<F> {
     }
 }
 
-impl<F: Fn(&Location, &Biome) -> Block + Clone> Debug for LazyBlock<F> {
+impl<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> Debug for LazyBlock<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Ungenerated(_, loc, biome) => f
