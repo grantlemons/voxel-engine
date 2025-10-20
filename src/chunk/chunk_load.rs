@@ -5,9 +5,7 @@ use std::{fmt::Debug, path::PathBuf};
 use thiserror::Error;
 
 use crate::{
-    AbsoluteLocation, ChunkLocation,
-    block::Block,
-    chunk::{Biome, lazy_block::LazyBlock},
+    AbsoluteLocation, ChunkLocation, chunk::lazy_block::LazyBlock, generation::GenerationOutput,
 };
 
 #[non_exhaustive]
@@ -27,7 +25,7 @@ type Detail = u8;
 type LazyChunk<F> = [RwLock<[[LazyBlock<F>; CHUNK_SIZE]; CHUNK_SIZE]>; CHUNK_SIZE];
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum LoadState<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> {
+pub enum LoadState<F: Fn(&AbsoluteLocation) -> GenerationOutput + Clone + Send + Sync> {
     Ungenerated(LazyChunk<F>),
     StoredRough(PathBuf, Detail),
     StoredFine(PathBuf),
@@ -35,16 +33,14 @@ pub enum LoadState<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sy
     Fine(LazyChunk<F>),
 }
 
-pub fn lazy_chunk<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync>(
+pub fn lazy_chunk<F: Fn(&AbsoluteLocation) -> GenerationOutput + Clone + Send + Sync>(
     f: F,
     chunk_location: ChunkLocation,
-    biome: Biome,
 ) -> LazyChunk<F> {
     let val = |z, x, y| {
         LazyBlock::Ungenerated(
             f.clone(),
             AbsoluteLocation::new(x as u32, y as u32, z as u32) + chunk_location,
-            biome,
         )
     };
     let inner = |z, x| {
@@ -58,9 +54,9 @@ pub fn lazy_chunk<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Syn
     std::array::from_fn::<_, CHUNK_SIZE, _>(outer)
 }
 
-impl<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> LoadState<F> {
-    pub fn new(f: F, chunk_location: ChunkLocation, biome: Biome) -> Self {
-        Self::Ungenerated(lazy_chunk(f, chunk_location, biome))
+impl<F: Fn(&AbsoluteLocation) -> GenerationOutput + Clone + Send + Sync> LoadState<F> {
+    pub fn new(f: F, chunk_location: ChunkLocation) -> Self {
+        Self::Ungenerated(lazy_chunk(f, chunk_location))
     }
 
     pub fn rough(self, detail: Detail) -> Result<Self, GenerationError> {
@@ -68,9 +64,7 @@ impl<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> LoadState<
             Self::Rough(_, r) if r == detail => Ok(self),
             Self::Ungenerated(src) | Self::Rough(src, _) | Self::Fine(src) => {
                 let division_size = CHUNK_SIZE / detail as usize;
-                let mid = |a: usize| {
-                    (a / division_size) * division_size as usize + (division_size as usize / 2)
-                };
+                let mid = |a: usize| (a / division_size) * division_size + (division_size / 2);
                 let dim_pariter = (0..CHUNK_SIZE).into_par_iter();
                 dim_pariter.clone().for_each(|z| {
                     (0..CHUNK_SIZE).for_each(|x| {
@@ -122,20 +116,12 @@ impl<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> LoadState<
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        AbsoluteLocation,
-        block::Block,
-        chunk::{Biome, chunk_load::LoadState},
-    };
+    use crate::{AbsoluteLocation, chunk::chunk_load::LoadState, generation::GenerationOutput};
 
     #[test]
     fn test_rough() {
-        let state = LoadState::new(
-            |_, _| Block::Wood,
-            AbsoluteLocation::default(),
-            Biome::Forest,
-        )
-        .rough(2);
+        let state =
+            LoadState::new(|_| GenerationOutput::default(), AbsoluteLocation::default()).rough(2);
         assert!(matches!(state, Ok(LoadState::Rough(_, 2))));
 
         match state.unwrap() {
@@ -148,12 +134,8 @@ mod tests {
 
     #[test]
     fn test_fine() {
-        let state = LoadState::new(
-            |_, _| Block::Wood,
-            AbsoluteLocation::default(),
-            Biome::Forest,
-        )
-        .fine();
+        let state =
+            LoadState::new(|_| GenerationOutput::default(), AbsoluteLocation::default()).fine();
         assert!(matches!(state, Ok(LoadState::Fine(_))));
 
         match state.unwrap() {
@@ -166,12 +148,8 @@ mod tests {
 
     #[test]
     fn test_rough_to_fine() {
-        let mut state = LoadState::new(
-            |_, _| Block::Wood,
-            AbsoluteLocation::default(),
-            Biome::Forest,
-        )
-        .rough(2);
+        let mut state =
+            LoadState::new(|_| GenerationOutput::default(), AbsoluteLocation::default()).rough(2);
         assert!(matches!(state, Ok(LoadState::Rough(_, 2))));
         state = state.unwrap().fine();
         assert!(matches!(state, Ok(LoadState::Fine(_))));
