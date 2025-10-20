@@ -17,10 +17,6 @@ pub enum GenerationError {
     FileNotFound,
     #[error("Unable to load from file!")]
     InvalidLoad,
-    #[error("Unable to roughen!")]
-    InvalidRoughen,
-    #[error("Unable to make more fine!")]
-    InvalidFine,
 }
 
 /// Chunk size in each dimension
@@ -67,30 +63,10 @@ impl<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> LoadState<
         Self::Ungenerated(lazy_chunk(f, chunk_location, biome))
     }
 
-    pub fn generate_rough(self, detail: Detail) -> Result<Self, GenerationError> {
+    pub fn rough(self, detail: Detail) -> Result<Self, GenerationError> {
         match self {
-            LoadState::Ungenerated(_) => self.convert_rough(detail),
-            LoadState::StoredRough(_, _) => self.load_stored()?.convert_rough(detail),
-            LoadState::StoredFine(_) => self.load_stored()?.convert_rough(detail),
-            LoadState::Rough(_, _) => self.convert_rough(detail),
-            LoadState::Fine(_) => self.convert_rough(detail),
-        }
-    }
-
-    pub fn generate_fine(self) -> Result<Self, GenerationError> {
-        match self {
-            LoadState::Ungenerated(_) => self.convert_fine(),
-            LoadState::StoredRough(_, _) => self.load_stored()?.convert_fine(),
-            LoadState::StoredFine(_) => self.load_stored()?.convert_fine(),
-            LoadState::Rough(_, _) => self.convert_fine(),
-            LoadState::Fine(_) => Ok(self),
-        }
-    }
-
-    fn convert_rough(self, detail: Detail) -> Result<Self, GenerationError> {
-        match self {
-            LoadState::Rough(_, r) if r == detail => Ok(self),
-            LoadState::Ungenerated(src) | LoadState::Rough(src, _) | LoadState::Fine(src) => {
+            Self::Rough(_, r) if r == detail => Ok(self),
+            Self::Ungenerated(src) | Self::Rough(src, _) | Self::Fine(src) => {
                 let division_size = CHUNK_SIZE / detail as usize;
                 let mid = |a: usize| {
                     (a / division_size) * division_size as usize + (division_size as usize / 2)
@@ -110,13 +86,14 @@ impl<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> LoadState<
                 });
                 Ok(Self::Rough(src, detail))
             }
-            _ => Err(GenerationError::InvalidRoughen),
+            Self::StoredRough(..) => self.load_stored()?.rough(detail),
+            Self::StoredFine(..) => self.load_stored()?.rough(detail),
         }
     }
 
-    fn convert_fine(self) -> Result<Self, GenerationError> {
+    pub fn fine(self) -> Result<Self, GenerationError> {
         match self {
-            LoadState::Ungenerated(src) | Self::Rough(src, _) => {
+            Self::Ungenerated(src) | Self::Rough(src, _) => {
                 let dim_pariter = (0..CHUNK_SIZE).into_par_iter();
                 dim_pariter.clone().for_each(|z| {
                     let mut z_layer = src[z].write();
@@ -129,14 +106,15 @@ impl<F: Fn(&AbsoluteLocation, &Biome) -> Block + Clone + Send + Sync> LoadState<
                 Ok(Self::Fine(src))
             }
             Self::Fine(_) => Ok(self),
-            _ => Err(GenerationError::InvalidFine),
+            Self::StoredRough(..) => self.load_stored()?.fine(),
+            Self::StoredFine(..) => self.load_stored()?.fine(),
         }
     }
 
     fn load_stored(&self) -> Result<Self, GenerationError> {
         match self {
-            LoadState::StoredRough(_path_buf, _) => todo!(),
-            LoadState::StoredFine(_path_buf) => todo!(),
+            Self::StoredRough(_path_buf, _) => todo!(),
+            Self::StoredFine(_path_buf) => todo!(),
             _ => Err(GenerationError::InvalidLoad),
         }
     }
@@ -157,7 +135,7 @@ mod tests {
             AbsoluteLocation::default(),
             Biome::Forest,
         )
-        .convert_rough(2);
+        .rough(2);
         assert!(matches!(state, Ok(LoadState::Rough(_, 2))));
 
         match state.unwrap() {
@@ -175,7 +153,7 @@ mod tests {
             AbsoluteLocation::default(),
             Biome::Forest,
         )
-        .convert_fine();
+        .fine();
         assert!(matches!(state, Ok(LoadState::Fine(_))));
 
         match state.unwrap() {
@@ -193,9 +171,9 @@ mod tests {
             AbsoluteLocation::default(),
             Biome::Forest,
         )
-        .convert_rough(2);
+        .rough(2);
         assert!(matches!(state, Ok(LoadState::Rough(_, 2))));
-        state = state.unwrap().convert_fine();
+        state = state.unwrap().fine();
         assert!(matches!(state, Ok(LoadState::Fine(_))));
 
         match state.unwrap() {
