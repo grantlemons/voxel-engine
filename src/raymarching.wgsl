@@ -1,6 +1,6 @@
 struct Voxel {
     location: vec3f,
-    // distance from center to edge of box in each
+    // distance from center to edge of box in each dimension
     dims: vec3f,
     color: vec3f,
 }
@@ -20,9 +20,7 @@ fn sd_voxel(p: vec3f, voxel: Voxel) -> f32 {
 
 const EPSILON = 0.0001;
 fn voxel_normal(p: vec3f, voxel: Voxel) -> vec3f {
-    // find rough gradient using the "Tetrahedron technique"
-    // \text{let } f \text{ be a signed distance function.} \\
-    // \text{let } \vec{n} \text{ be the normal to the SDF object.} \\
+    // find rough normal via gradient using the "Tetrahedron technique"
     let k = vec2f(1., -1.);
     return normalize(
         k.xyy * sd_voxel(p + k.xyy * EPSILON, voxel) + k.yyx * sd_voxel(p + k.yyx * EPSILON, voxel) + k.yxy * sd_voxel(p + k.yxy * EPSILON, voxel) + k.xxx * sd_voxel(p + k.xxx * EPSILON, voxel)
@@ -89,21 +87,27 @@ fn calculate_color(p: vec3f, norm: vec3f, material_color: vec3f) -> vec3f {
 
 const MAX_STEPS: u32 = 512u;
 const MAX_DISTANCE: f32 = 10000.;
+const MAX_DISTANCE_REFLECTION: f32 = 1000.;
 const MIN_DISTANCE: f32 = 0.;
-const DIST_THRESHOLD: f32 = 0.001;
+const DIST_THRESHOLD: f32 = 0.0001;
+const MAX_BOUNCES: u32 = 3u;
 fn raymarch(start_p: vec3f, start_dir: vec3f) -> vec3f {
     var p: vec3f = start_p;
     var dir: vec3f = normalize(start_dir);
     var distance = MIN_DISTANCE;
+    var bounces = 0u;
 
     var color = vec3f(0.);
-    for (var steps: u32 = 0u; steps <= MAX_STEPS && distance <= MAX_DISTANCE; steps++) {
+    for (var steps: u32 = 0u; steps <= MAX_STEPS && distance <= select(MAX_DISTANCE, MAX_DISTANCE_REFLECTION, bounces > 0u) && bounces < MAX_BOUNCES; steps++) {
         p += dir * distance;
 
         let closest = closest_voxel(p);
         if abs(closest.distance) < DIST_THRESHOLD {
-            color += calculate_color(p, voxel_normal(p, closest.voxel), closest.voxel.color);
-            break;
+            let normal = voxel_normal(p, closest.voxel);
+            color += calculate_color(p, normal, closest.voxel.color);
+
+            dir = reflect(p, normal);
+            bounces++;
         }
 
         distance = closest.distance;
