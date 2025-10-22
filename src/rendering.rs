@@ -2,10 +2,28 @@
 
 use std::sync::Arc;
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Voxel {
+    location: [f32; 3],
+    dims: [f32; 3],
+    color: [f32; 3],
+}
+const TEST_VOXELS: &[Voxel] = &[Voxel {
+    location: [0., 0., 0.],
+    dims: [1., 1., 1.],
+    color: [255., 255., 255.],
+}];
+const TEST_LIGHTS: &[Voxel] = &[Voxel {
+    location: [-4., -4., 4.],
+    dims: [1., 1., 1.],
+    color: [255., 255., 255.],
+}];
+
 use bitflags::Flags;
 use wgpu::{
     Device, ExperimentalFeatures, MemoryHints, PipelineCompilationOptions, Queue, RenderPipeline,
-    Surface, SurfaceConfiguration,
+    Surface, SurfaceConfiguration, util::DeviceExt,
 };
 use winit::{
     application::ApplicationHandler,
@@ -25,6 +43,8 @@ pub struct State {
     config: SurfaceConfiguration,
     render_pipeline: RenderPipeline,
     frame_count: u32,
+    voxel_buffer: wgpu::Buffer,
+    lights_buffer: wgpu::Buffer,
 }
 
 impl State {
@@ -85,21 +105,56 @@ impl State {
             source: wgpu::ShaderSource::Wgsl(include_str!("raymarching.wgsl").into()),
         });
 
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Voxel and Light list layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::all(),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::all(),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                range: 0..std::mem::size_of::<[f64; 7]>() as u32, // parameters
+                range: 0..std::mem::size_of::<[f32; 1]>() as u32, // parameters
             }],
         });
 
+        let voxel_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Voxel Buffer"),
+            contents: bytemuck::cast_slice(TEST_VOXELS),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let lights_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Lights Buffer"),
+            contents: bytemuck::cast_slice(TEST_LIGHTS),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipleline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("main"),
+                entry_point: Some("vs_main"),
                 compilation_options: PipelineCompilationOptions::default(),
                 buffers: &[],
             },
@@ -114,7 +169,16 @@ impl State {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            fragment: None,
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
             multiview: None,
             cache: None,
         });
@@ -128,6 +192,8 @@ impl State {
             config,
             render_pipeline,
             frame_count: 0,
+            voxel_buffer,
+            lights_buffer,
         }
     }
 }

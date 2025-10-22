@@ -1,3 +1,45 @@
+struct SceneProperties {
+    size: vec2u,
+    camera_rot: vec2f,
+    camera_pos: vec3f,
+};
+
+var<push_constant> properties: SceneProperties;
+
+// output of a vertex shader
+struct VertexOutput {
+    @builtin(position) clip_position: vec4f,
+    @location(0) uv: vec2f,
+};
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+    let aspect_ratio = f32(properties.size.x) / f32(properties.size.y);
+    let uv = vec2f(in.uv.x, in.uv.y * aspect_ratio);
+
+    let cos_yaw = cos(properties.camera_rot.x);
+    let sin_yaw = cos(properties.camera_rot.x);
+    let cos_pitch = cos(properties.camera_rot.y);
+    let sin_pitch = cos(properties.camera_rot.y);
+
+    let rotation_matrix_x = mat3x3<f32>(
+        1.0, 0.0, 0.0,
+        0.0, cos_pitch, sin_pitch,
+        0.0, -sin_pitch, cos_pitch
+    );
+    let rotation_matrix_y = mat3x3<f32>(
+        cos_yaw, 0.0, -sin_yaw,
+        0.0, 1.0, 0.0,
+        sin_yaw, 0.0, cos_yaw
+    );
+
+    let camera_dir = normalize(rotation_matrix_x * rotation_matrix_y * vec3f(uv, 1.0));
+    let color = raymarch(properties.camera_pos, camera_dir);
+    let tone_mapped = color / (color + 1.);
+
+    return vec4f(tone_mapped, 1.);
+}
+
 struct Voxel {
     location: vec3f,
     // distance from center to edge of box in each dimension

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 bitflags = "2.9.4"
+bytemuck = { version = "1.24.0", features = ["derive"] }
 clap = { version = "4.5.49", features = ["derive"] }
 flume = "0.11.1"
 glam = { version = "0.30.8", features = ["serde"] }
