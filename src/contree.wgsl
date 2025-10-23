@@ -9,6 +9,7 @@ struct ContreeInner {
     leaf: array<u32, 2>,
     light: array<u32, 2>,
     children: array<u32, 64>,
+    default_material: u32,
 }
 
 struct Material {
@@ -16,6 +17,7 @@ struct Material {
     reflectivity: f32,
 }
 
+var<push_constant> contree_root: u32;
 var<push_constant> contree_center: f32;
 var<push_constant> contree_size: vec3u;
 @group(0) @binding(0) var<storage, read> inners: array<ContreeInner>;
