@@ -1,6 +1,11 @@
-#![allow(dead_code, unused_imports)]
+#![allow(dead_code)]
 
 use std::sync::Arc;
+use wgpu::{
+    Device, ExperimentalFeatures, MemoryHints, PipelineCompilationOptions, Queue, RenderPipeline,
+    Surface, SurfaceConfiguration, util::DeviceExt,
+};
+use winit::{dpi::PhysicalSize, window::Window};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -19,20 +24,6 @@ const TEST_LIGHTS: &[Voxel] = &[Voxel {
     dims: [1., 1., 1.],
     color: [255., 255., 255.],
 }];
-
-use bitflags::Flags;
-use wgpu::{
-    Device, ExperimentalFeatures, MemoryHints, PipelineCompilationOptions, Queue, RenderPipeline,
-    Surface, SurfaceConfiguration, util::DeviceExt,
-};
-use winit::{
-    application::ApplicationHandler,
-    dpi::PhysicalSize,
-    event::*,
-    event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
-    window::{Window, WindowAttributes},
-};
 
 pub struct State {
     window: Arc<Window>,
