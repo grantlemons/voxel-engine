@@ -9,7 +9,6 @@ struct ContreeInner {
     leaf: array<u32, 2>,
     light: array<u32, 2>,
     children: array<u32, 64>,
-    default_material: u32,
 }
 
 struct Material {
