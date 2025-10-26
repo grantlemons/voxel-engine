@@ -123,13 +123,6 @@ mod tests {
         let state =
             LoadState::new(|_| GenerationOutput::default(), AbsoluteLocation::default()).rough(2);
         assert!(matches!(state, Ok(LoadState::Rough(_, 2))));
-
-        match state.unwrap() {
-            LoadState::Rough(src, _) => {
-                dbg!(&src[3].read()[3]);
-            }
-            _ => {}
-        }
     }
 
     #[test]
@@ -137,13 +130,6 @@ mod tests {
         let state =
             LoadState::new(|_| GenerationOutput::default(), AbsoluteLocation::default()).fine();
         assert!(matches!(state, Ok(LoadState::Fine(_))));
-
-        match state.unwrap() {
-            LoadState::Fine(src) => {
-                dbg!(&src[3].read()[3]);
-            }
-            _ => {}
-        }
     }
 
     #[test]
@@ -153,12 +139,5 @@ mod tests {
         assert!(matches!(state, Ok(LoadState::Rough(_, 2))));
         state = state.unwrap().fine();
         assert!(matches!(state, Ok(LoadState::Fine(_))));
-
-        match state.unwrap() {
-            LoadState::Fine(src) => {
-                dbg!(&src[3].read()[3]);
-            }
-            _ => {}
-        }
     }
 }
