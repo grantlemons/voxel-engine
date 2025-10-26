@@ -90,8 +90,8 @@ impl Contree {
                 return digits;
             }
             while n != 0 {
-                digits.push((n % 64) as usize);
-                n /= 64
+                digits.push((n as usize) & 0b111111);
+                n >>= 6;
             }
             digits.reverse();
             digits
