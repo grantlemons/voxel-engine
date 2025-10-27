@@ -27,19 +27,29 @@ var<push_constant> contree_size: u32;
 fn cs_main(@builtin(global_invocation_id) id: vec3u) {
 }
 
+// raycast to each light source nearby, return an rgb value representing the sum
+// of the light brightnesses and colors
 fn calculate_brightness(p: vec3f, dir: vec3f) -> vec3f {
     return vec3f(0.);
 }
 
+// calculate the color of a hit based on the material and lighting
 fn calculate_color(p: vec3f, dir: vec3f) -> vec3f {
     return vec3f(0.);
 }
 
-fn raytrace(p: vec3f, dir: vec3f) -> vec3f {
+// traverse a ray, bouncing a given maximum number of times
+fn raycast(p: vec3f, dir: vec3f, bounces: u32) -> vec3f {
     return vec3f(0.);
 }
 
+// convert from a signed coordinate in the range of the contree to an unsigned
+// contree-coordinate
+fn normalize_coord(p: vec3i) -> vec3u {
+    return vec3u(p + i32(contree_size));
+}
 
+// interleave a 32bit number with zero to get a 64 bit number
 fn interleave(val: u32) -> array<u32, 2> {
     var magic_numbers = array<array<u32, 2>, 5>(
         array(0x001f0000u, 0x0000ffffu),
@@ -70,33 +80,42 @@ fn interleave(val: u32) -> array<u32, 2> {
     return x;
 }
 
+// calculate the morton code for a normalized coordinate
 fn morton_code(p: vec3u) -> array<u32, 2> {
     let x_interleaved = interleave(p.x);
     let x_upper = ((x_interleaved[0] << 2u) | (x_interleaved[1] >> 30u));
+    let x_lower = x_interleaved[1] << 2u;
 
     let y_interleaved = interleave(p.y);
     let y_upper = ((x_interleaved[0] << 1u) | (x_interleaved[1] >> 31u));
+    let y_lower = y_interleaved[1] << 1u;
 
     let z_interleaved = interleave(p.z);
 
-    return array<u32, 2>(x_upper | y_upper | z_interleaved[0], x_interleaved[1] | x_interleaved[1] | z_interleaved[1]);
+    return array<u32, 2>(
+        x_upper | y_upper | z_interleaved[0],
+        x_lower | y_lower | z_interleaved[1]
+    );
 }
 
-// check if digit >= 64 to only get valid codes
-fn to_base_64(code: array<u32, 2>) -> array<u32, 10> {
+struct ChildIndexes {
+    indexes: array<u32, 10>,
+    count: u32,
+}
+
+// convert from morton codes to child indexes for traversal
+fn to_base_64(code: array<u32, 2>) -> ChildIndexes {
     var digits = array<u32, 10>(64, 64, 64, 64, 64, 64, 64, 64, 64, 64);
-    var i = 0;
+
     var n = code;
-    if n[0] == 0u && n[1] == 0u {
-        digits[0] = 0u;
-        return digits;
-    }
+    var i = 0u;
     while n[0] != 0u || n[1] != 0u {
         digits[i] = n[1] & 0x3fu;
 
         n[1] = (n[0] << 26u) | (n[1] >> 6u);
         n[0] >>= 6u;
+        i++;
     }
 
-    return digits;
+    return ChildIndexes(digits, i);
 }
