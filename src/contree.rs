@@ -163,45 +163,46 @@ impl Contree {
     }
 
     fn insert(&mut self, pos: Vec3, material: u8) -> Vec<Addr> {
-        if self.in_bounds(pos) {
-            let FindResult {
-                leaf_address,
-                mut traversal_stack,
-                mut parent_addrs,
-            } = self.find(pos, &[]);
-            match leaf_address {
-                Some(addr) => {
-                    let leaf = self
-                        .leaves
-                        .get_mut(addr as usize)
-                        .expect("Leaf node does not exist!");
-
-                    let child_index = *traversal_stack.last().unwrap();
-                    leaf.children[child_index] = material;
-                    leaf.contains |= 1 << child_index;
-                }
-                None => {
-                    let (leaf_addr, child_index) =
-                        self.add_parents(&mut traversal_stack, &mut parent_addrs);
-
-                    let leaf = self
-                        .leaves
-                        .get_mut(leaf_addr as usize)
-                        .expect("Leaf node does not exist!");
-
-                    leaf.children[child_index] = material;
-                    leaf.contains |= 1 << child_index;
-                }
-            }
-            return parent_addrs;
-        } else {
-            let self_child = 0;
+        // Grow upward until the position is in bounds
+        while !self.in_bounds(pos) {
             let new_root = self.new_root_node();
-            self.inners[new_root as usize].children[self_child] = self.root as u32;
+            let self_index = 0;
+            self.inners[new_root as usize].children[self_index] = self.root as u32;
             self.root = new_root;
-            self.center_offset -= (pos - self.center_offset) / 2.;
+            self.size *= 8;
             todo!()
         }
+
+        let FindResult {
+            leaf_address,
+            mut traversal_stack,
+            mut parent_addrs,
+        } = self.find(pos, &[]);
+        match leaf_address {
+            Some(addr) => {
+                let leaf = self
+                    .leaves
+                    .get_mut(addr as usize)
+                    .expect("Leaf node does not exist!");
+
+                let child_index = *traversal_stack.last().unwrap();
+                leaf.children[child_index] = material;
+                leaf.contains |= 1 << child_index;
+            }
+            None => {
+                let (leaf_addr, child_index) =
+                    self.add_parents(&mut traversal_stack, &mut parent_addrs);
+
+                let leaf = self
+                    .leaves
+                    .get_mut(leaf_addr as usize)
+                    .expect("Leaf node does not exist!");
+
+                leaf.children[child_index] = material;
+                leaf.contains |= 1 << child_index;
+            }
+        }
+        return parent_addrs;
     }
 
     fn add_parents(
