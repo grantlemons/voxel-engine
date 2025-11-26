@@ -22,7 +22,7 @@ struct ContreeInner {
 }
 
 type ChildIndex = usize;
-type Addr = usize;
+type Addr = u32;
 
 #[derive(Debug, Clone, Default)]
 struct Contree {
@@ -81,7 +81,26 @@ impl Contree {
             < self.size
     }
 
-    fn new_inner_node(&mut self, parent: Addr, child: ChildIndex) -> Addr {
+    fn new_root_node(&mut self) -> Addr {
+        let new_node = ContreeInner {
+            contains: 0,
+            leaf: 0,
+            light: 0,
+            children: [0; 64],
+        };
+        match self.inner_tombstones.pop() {
+            Some(addr) => {
+                self.inners[addr as usize] = new_node;
+                addr
+            }
+            None => {
+                self.inners.push(new_node);
+                (self.inners.len() - 1) as u32
+            }
+        }
+    }
+
+    fn new_inner_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
         let new_node = ContreeInner {
             contains: 0,
             leaf: 0,
@@ -90,20 +109,20 @@ impl Contree {
         };
         let addr = match self.inner_tombstones.pop() {
             Some(addr) => {
-                self.inners[addr] = new_node;
+                self.inners[addr as usize] = new_node;
                 addr
             }
             None => {
                 self.inners.push(new_node);
-                self.inners.len() - 1
+                (self.inners.len() - 1) as u32
             }
         };
-        self.inners[parent].children[child] = addr as u32;
-        self.update_parent_bitflags(parent, child, true, false, false);
+        self.inners[parent as usize].children[index] = addr as u32;
+        self.update_parent_bitflags(parent, index, true, false, false);
         addr
     }
 
-    fn new_leaf_node(&mut self, parent: Addr, child: ChildIndex) -> Addr {
+    fn new_leaf_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
         let new_node = ContreeLeaf {
             contains: 0,
             light: 0,
@@ -111,16 +130,16 @@ impl Contree {
         };
         let addr = match self.leaf_tombstones.pop() {
             Some(addr) => {
-                self.leaves[addr] = new_node;
+                self.leaves[addr as usize] = new_node;
                 addr
             }
             None => {
                 self.leaves.push(new_node);
-                self.leaves.len() - 1
+                (self.leaves.len() - 1) as u32
             }
         };
-        self.inners[parent].children[child] = addr as u32;
-        self.update_parent_bitflags(parent, child, true, true, false);
+        self.inners[parent as usize].children[index] = addr as u32;
+        self.update_parent_bitflags(parent, index, true, true, false);
         addr
     }
 
@@ -133,12 +152,14 @@ impl Contree {
         light: bool,
     ) {
         let mask = (1 as u64) << child;
-        self.inners[parent].contains &= !mask;
-        self.inners[parent].contains |= (exists as u64) << child;
-        self.inners[parent].leaf &= !mask;
-        self.inners[parent].leaf |= (leaf as u64) << child;
-        self.inners[parent].light &= !mask;
-        self.inners[parent].light |= (light as u64) << child;
+
+        let parent_node = &mut self.inners[parent as usize];
+        parent_node.contains &= !mask;
+        parent_node.contains |= (exists as u64) << child;
+        parent_node.leaf &= !mask;
+        parent_node.leaf |= (leaf as u64) << child;
+        parent_node.light &= !mask;
+        parent_node.light |= (light as u64) << child;
     }
 
     fn insert(&mut self, pos: Vec3, material: u8) -> Vec<Addr> {
@@ -152,7 +173,7 @@ impl Contree {
                 Some(addr) => {
                     let leaf = self
                         .leaves
-                        .get_mut(addr)
+                        .get_mut(addr as usize)
                         .expect("Leaf node does not exist!");
 
                     let child_index = *traversal_stack.last().unwrap();
@@ -165,7 +186,7 @@ impl Contree {
 
                     let leaf = self
                         .leaves
-                        .get_mut(leaf_addr)
+                        .get_mut(leaf_addr as usize)
                         .expect("Leaf node does not exist!");
 
                     leaf.children[child_index] = material;
@@ -174,8 +195,11 @@ impl Contree {
             }
             return parent_addrs;
         } else {
-            // TODO: Expand contree
-            let contains = self.inners[self.root].contains;
+            let self_child = 0;
+            let new_root = self.new_root_node();
+            self.inners[new_root as usize].children[self_child] = self.root as u32;
+            self.root = new_root;
+            self.center_offset -= (pos - self.center_offset) / 2.;
             todo!()
         }
     }
@@ -229,7 +253,7 @@ impl Contree {
         }
 
         parent_addrs.push(self.root);
-        let mut current = self.inners[self.root];
+        let mut current = self.inners[self.root as usize];
         for i in 0..(traversal_stack.len()) {
             let index = traversal_stack.last().unwrap();
             let child_addr = current.children[*index] as Addr;
@@ -248,7 +272,7 @@ impl Contree {
             if child_exists {
                 traversal_stack.pop();
                 parent_addrs.push(child_addr);
-                current = self.inners[child_addr];
+                current = self.inners[child_addr as usize];
             } else {
                 return FindResult {
                     leaf_address: None,
