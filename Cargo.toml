@@ -4,12 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.100"
 bitflags = "2.9.4"
 bytemuck = { version = "1.24.0", features = ["derive"] }
 clap = { version = "4.5.49", features = ["derive"] }
 flume = "0.11.1"
 glam = { version = "0.30.8", features = ["serde"] }
 parking_lot = { version = "0.12.5", features = ["serde"] }
+pollster = "0.4.0"
 rayon = "1.11.0"
 serde = "1.0.228"
 serde-binary = "0.5.0"
