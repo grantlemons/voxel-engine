@@ -340,7 +340,7 @@ impl State {
 
             render_pass.set_pipeline(&self.render.pipeline);
             render_pass.set_bind_group(0, &render_bind_group, &[]);
-            render_pass.draw(0..6, 0..1);
+            render_pass.draw(0..3, 0..1);
         }
 
         // submit will accept anything that implements IntoIter
