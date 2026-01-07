@@ -26,7 +26,6 @@ struct RenderState {
 
 struct State {
     window: Arc<Window>,
-    size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     is_surface_configured: bool,
     device: wgpu::Device,
@@ -42,7 +41,6 @@ impl ComputeState {
         device: &wgpu::Device,
         shader: &wgpu::ShaderModule,
         pipeline_layout: &wgpu::PipelineLayout,
-        size: &winit::dpi::PhysicalSize<u32>,
     ) -> Self {
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Compute Pipeline"),
@@ -52,6 +50,7 @@ impl ComputeState {
             compilation_options: Default::default(),
             cache: None,
         });
+
         Self {
             pipeline,
             write_texture: None,
@@ -183,11 +182,10 @@ impl State {
         });
 
         Ok(Self {
-            compute: ComputeState::new(&device, &shader, &pipeline_layout, &size),
+            compute: ComputeState::new(&device, &shader, &pipeline_layout),
             render: RenderState::new(&device, &shader, &pipeline_layout, &config),
             device,
             window,
-            size,
             surface,
             is_surface_configured: false,
             queue,
@@ -202,14 +200,15 @@ impl State {
             self.config.height = height;
             self.surface.configure(&self.device, &self.config);
 
+            let size = wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            };
             self.compute.write_texture =
                 Some(self.device.create_texture(&wgpu::TextureDescriptor {
                     label: Some("Write Texture"),
-                    size: wgpu::Extent3d {
-                        width,
-                        height,
-                        depth_or_array_layers: 1,
-                    },
+                    size,
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
@@ -221,11 +220,7 @@ impl State {
             self.compute.read_texture =
                 Some(self.device.create_texture(&wgpu::TextureDescriptor {
                     label: Some("Read Texture"),
-                    size: wgpu::Extent3d {
-                        width,
-                        height,
-                        depth_or_array_layers: 1,
-                    },
+                    size,
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
@@ -302,7 +297,7 @@ impl State {
             });
             compute_pass.set_bind_group(0, &compute_bind_group, &[]);
             compute_pass.set_pipeline(&self.compute.pipeline);
-            compute_pass.dispatch_workgroups(self.size.width, self.size.height, 1);
+            compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
         }
 
         encoder.copy_texture_to_texture(
@@ -343,7 +338,6 @@ impl State {
             render_pass.draw(0..3, 0..1);
         }
 
-        // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
         window.present();
 
