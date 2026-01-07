@@ -3,7 +3,7 @@ use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::error::EventLoopError;
 use winit::event::{KeyEvent, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event_loop::{self, ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
@@ -371,16 +371,22 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
-            WindowEvent::RedrawRequested => match state.render() {
-                Ok(_) => {}
-                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                    let size = state.window.inner_size();
-                    state.resize(size.width, size.height);
+            WindowEvent::RedrawRequested => {
+                let before = std::time::Instant::now();
+                match state.render() {
+                    Ok(_) => {
+                        let after = std::time::Instant::now();
+                        println!("{} fps", 1_000_000 / (after - before).as_micros());
+                    }
+                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                        let size = state.window.inner_size();
+                        state.resize(size.width, size.height);
+                    }
+                    Err(e) => {
+                        println!("Unable to render {}", e);
+                    }
                 }
-                Err(e) => {
-                    println!("Unable to render {}", e);
-                }
-            },
+            }
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
