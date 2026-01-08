@@ -3,7 +3,7 @@ use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::error::EventLoopError;
 use winit::event::{KeyEvent, WindowEvent};
-use winit::event_loop::{self, ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
@@ -17,11 +17,15 @@ struct App {
 struct ComputeState {
     pipeline: wgpu::ComputePipeline,
     write_texture: Option<wgpu::Texture>,
-    read_texture: Option<wgpu::Texture>,
+    write_texture_view: Option<wgpu::TextureView>,
+    bind_group: Option<wgpu::BindGroup>,
 }
 
 struct RenderState {
     pipeline: wgpu::RenderPipeline,
+    read_texture: Option<wgpu::Texture>,
+    read_texture_view: Option<wgpu::TextureView>,
+    bind_group: Option<wgpu::BindGroup>,
 }
 
 struct State {
@@ -44,7 +48,7 @@ impl ComputeState {
     ) -> Self {
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Compute Pipeline"),
-            layout: Some(&pipeline_layout),
+            layout: Some(pipeline_layout),
             module: shader,
             entry_point: Some("cs_main"),
             compilation_options: Default::default(),
@@ -54,7 +58,8 @@ impl ComputeState {
         Self {
             pipeline,
             write_texture: None,
-            read_texture: None,
+            write_texture_view: None,
+            bind_group: None,
         }
     }
 }
@@ -92,7 +97,12 @@ impl RenderState {
             cache: None,
         });
 
-        Self { pipeline }
+        Self {
+            pipeline,
+            read_texture: None,
+            read_texture_view: None,
+            bind_group: None,
+        }
     }
 }
 
@@ -217,16 +227,68 @@ impl State {
                     view_formats: &[],
                 }));
 
-            self.compute.read_texture =
-                Some(self.device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("Read Texture"),
-                    size,
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: TEXTURE_FORMAT,
-                    usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
-                    view_formats: &[],
+            self.render.read_texture = Some(self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Read Texture"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: TEXTURE_FORMAT,
+                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            }));
+
+            self.compute.write_texture_view = Some(
+                self.compute
+                    .write_texture
+                    .as_ref()
+                    .unwrap()
+                    .create_view(&Default::default()),
+            );
+            self.render.read_texture_view = Some(
+                self.render
+                    .read_texture
+                    .as_ref()
+                    .unwrap()
+                    .create_view(&Default::default()),
+            );
+            self.compute.bind_group =
+                Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Compute Group"),
+                    layout: &self.bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(
+                                self.compute.write_texture_view.as_ref().unwrap(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(
+                                self.render.read_texture_view.as_ref().unwrap(),
+                            ),
+                        },
+                    ],
+                }));
+            self.render.bind_group =
+                Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Render Group"),
+                    layout: &self.bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(
+                                self.compute.write_texture_view.as_ref().unwrap(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(
+                                self.render.read_texture_view.as_ref().unwrap(),
+                            ),
+                        },
+                    ],
                 }));
 
             self.is_surface_configured = true;
@@ -249,53 +311,12 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        let write_texture_view = self
-            .compute
-            .write_texture
-            .as_ref()
-            .unwrap()
-            .create_view(&Default::default());
-        let read_texture_view = self
-            .compute
-            .read_texture
-            .as_ref()
-            .unwrap()
-            .create_view(&Default::default());
-        let compute_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Texture Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&write_texture_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&read_texture_view),
-                },
-            ],
-        });
-        let render_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Render Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&write_texture_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&read_texture_view),
-                },
-            ],
-        });
-
         {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Compute Render Pass"),
                 timestamp_writes: None,
             });
-            compute_pass.set_bind_group(0, &compute_bind_group, &[]);
+            compute_pass.set_bind_group(0, self.compute.bind_group.as_ref().unwrap(), &[]);
             compute_pass.set_pipeline(&self.compute.pipeline);
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
         }
@@ -308,7 +329,7 @@ impl State {
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyTextureInfo {
-                texture: self.compute.read_texture.as_ref().unwrap(),
+                texture: self.render.read_texture.as_ref().unwrap(),
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
@@ -334,7 +355,7 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render.pipeline);
-            render_pass.set_bind_group(0, &render_bind_group, &[]);
+            render_pass.set_bind_group(0, self.render.bind_group.as_ref().unwrap(), &[]);
             render_pass.draw(0..3, 0..1);
         }
 
