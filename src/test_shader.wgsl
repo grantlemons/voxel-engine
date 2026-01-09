@@ -1,10 +1,19 @@
+struct Camera {
+    position: vec3f,
+    rotation: vec2f,
+    fov: f32,
+};
+
+var<push_constant> camera: Camera;
+
 @group(0) @binding(0) var write_texture: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(1) var read_texture: texture_storage_2d<rgba32float, read>;
 
 @compute @workgroup_size(8, 8)
 fn cs_main(@builtin(global_invocation_id) id: vec3u) {
     let size = textureDimensions(write_texture);
-    let color = vec3f(vec2f(id.xy) / vec2f(size), 0.);
+    let position_adjusted = vec2f(id.xy) + camera.position.xy;
+    let color = vec3f(position_adjusted % vec2f(size), 0.);
     textureStore(write_texture, id.xy, vec4f(color, 1.));
 }
 

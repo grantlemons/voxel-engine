@@ -6,8 +6,15 @@ pub struct Renderer {
     pub camera: Camera,
 }
 
-#[derive(Default)]
-pub struct Camera;
+// 32 bytes
+#[repr(C, align(16))]
+#[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Camera {
+    position: [f32; 3],
+    rotation: [f32; 2],
+    fov: f32,
+    padding: [u8; 8],
+}
 
 pub struct ComputeState {
     pipeline: wgpu::ComputePipeline,
@@ -152,7 +159,7 @@ impl State {
         let shader = device.create_shader_module(wgpu::include_wgsl!("test_shader.wgsl"));
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Pipeline Layout"),
+            label: Some("Bind Group Layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -182,7 +189,7 @@ impl State {
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStages::COMPUTE,
-                range: 0..std::mem::size_of::<[f32; 0]>() as u32, // parameters, NOT SURE IF/HOW THIS WORKS
+                range: 0..std::mem::size_of::<[Camera; 1]>() as u32, // parameters, NOT SURE IF/HOW THIS WORKS
             }],
         });
 
@@ -286,6 +293,7 @@ impl Renderer {
             label: Some("Compute Render Pass"),
             timestamp_writes: None,
         });
+        compute_pass.set_push_constants(0, bytemuck::bytes_of(&self.camera));
         compute_pass.set_bind_group(0, self.state.compute.bind_group.as_ref().unwrap(), &[]);
         compute_pass.set_pipeline(&self.state.compute.pipeline);
         compute_pass.dispatch_workgroups(self.state.config.width, self.state.config.height, 1);
