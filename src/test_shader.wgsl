@@ -12,8 +12,8 @@ var<push_constant> camera: Camera;
 @compute @workgroup_size(8, 8)
 fn cs_main(@builtin(global_invocation_id) id: vec3u) {
     let size = textureDimensions(write_texture);
-    let position_adjusted = vec2f(id.xy) + camera.position.xy;
-    let color = vec3f(position_adjusted % vec2f(size), 0.);
+    let position_adjusted = (vec2f(id.xy) + camera.position.xy) % vec2f(size);
+    let color = vec3f(position_adjusted / vec2f(size), 0.);
     textureStore(write_texture, id.xy, vec4f(color, 1.));
 }
 

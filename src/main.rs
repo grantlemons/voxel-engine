@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use winit::{
     application::ApplicationHandler,
@@ -15,6 +15,7 @@ use rendering::Renderer;
 pub struct App {
     renderer: Option<Renderer>,
     last_frame: std::time::Instant,
+    pressed_keys: HashSet<KeyCode>,
 }
 
 impl Default for App {
@@ -22,6 +23,7 @@ impl Default for App {
         Self {
             renderer: None,
             last_frame: std::time::Instant::now(),
+            pressed_keys: HashSet::new(),
         }
     }
 }
@@ -39,6 +41,7 @@ impl ApplicationHandler for App {
             None => return,
         };
 
+        const MOVE_DIST: f32 = 5.;
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
@@ -49,6 +52,16 @@ impl ApplicationHandler for App {
                     let after = std::time::Instant::now();
                     println!("{} fps", 1_000_000 / (after - self.last_frame).as_micros());
                     self.last_frame = after;
+
+                    for code in &self.pressed_keys {
+                        match code {
+                            KeyCode::KeyA => renderer.camera_left_right(-MOVE_DIST),
+                            KeyCode::KeyD => renderer.camera_left_right(MOVE_DIST),
+                            KeyCode::KeyW => renderer.camera_up_down(MOVE_DIST),
+                            KeyCode::KeyS => renderer.camera_up_down(-MOVE_DIST),
+                            _ => {}
+                        }
+                    }
                 }
                 Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                     let size = renderer.window.inner_size();
@@ -63,12 +76,20 @@ impl ApplicationHandler for App {
                     KeyEvent {
                         physical_key: PhysicalKey::Code(code),
                         state: key_state,
+                        repeat: false,
                         ..
                     },
                 ..
             } => match (code, key_state.is_pressed()) {
                 (KeyCode::KeyQ, true) => event_loop.exit(),
-                _ => {}
+                (code, true) => {
+                    self.pressed_keys.insert(code);
+                    renderer.window.request_redraw();
+                }
+                (code, false) => {
+                    self.pressed_keys.remove(&code);
+                    renderer.window.request_redraw();
+                }
             },
             _ => {}
         }

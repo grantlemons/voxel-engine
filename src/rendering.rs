@@ -110,6 +110,7 @@ impl RenderState {
 
 impl State {
     pub async fn new(window: std::sync::Arc<winit::window::Window>) -> anyhow::Result<Self> {
+        let num_push_vectors = std::mem::size_of::<[Camera; 1]>() as u32;
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -132,7 +133,10 @@ impl State {
                 label: None,
                 required_features: wgpu::Features::PUSH_CONSTANTS,
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
-                required_limits: Default::default(),
+                required_limits: wgpu::Limits {
+                    max_push_constant_size: num_push_vectors,
+                    ..Default::default()
+                },
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
             })
@@ -189,7 +193,7 @@ impl State {
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStages::COMPUTE,
-                range: 0..std::mem::size_of::<[Camera; 1]>() as u32, // parameters, NOT SURE IF/HOW THIS WORKS
+                range: 0..num_push_vectors,
             }],
         });
 
@@ -293,9 +297,9 @@ impl Renderer {
             label: Some("Compute Render Pass"),
             timestamp_writes: None,
         });
-        compute_pass.set_push_constants(0, bytemuck::bytes_of(&self.camera));
         compute_pass.set_bind_group(0, self.state.compute.bind_group.as_ref().unwrap(), &[]);
         compute_pass.set_pipeline(&self.state.compute.pipeline);
+        compute_pass.set_push_constants(0, bytemuck::bytes_of(&self.camera));
         compute_pass.dispatch_workgroups(self.state.config.width, self.state.config.height, 1);
     }
 
@@ -364,5 +368,14 @@ impl Renderer {
         window.present();
 
         Ok(())
+    }
+
+    pub fn camera_left_right(&mut self, dist: f32) {
+        self.camera.position[0] += dist;
+        self.window.request_redraw();
+    }
+    pub fn camera_up_down(&mut self, dist: f32) {
+        self.camera.position[1] += dist;
+        self.window.request_redraw();
     }
 }
