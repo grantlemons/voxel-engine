@@ -1,5 +1,14 @@
 const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba32Float;
 
+pub struct Renderer {
+    state: State,
+    pub window: std::sync::Arc<winit::window::Window>,
+    pub camera: Camera,
+}
+
+#[derive(Default)]
+pub struct Camera;
+
 pub struct ComputeState {
     pipeline: wgpu::ComputePipeline,
     write_texture: Option<wgpu::Texture>,
@@ -190,161 +199,182 @@ impl State {
         })
     }
 
+    pub fn update_textures(&mut self, width: u32, height: u32) {
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        self.compute.write_texture = Some(self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Write Texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: TEXTURE_FORMAT,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        }));
+
+        self.render.read_texture = Some(self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Read Texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: TEXTURE_FORMAT,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        }));
+
+        self.compute.write_texture_view = Some(
+            self.compute
+                .write_texture
+                .as_ref()
+                .unwrap()
+                .create_view(&Default::default()),
+        );
+        self.render.read_texture_view = Some(
+            self.render
+                .read_texture
+                .as_ref()
+                .unwrap()
+                .create_view(&Default::default()),
+        );
+        self.compute.bind_group = Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Compute Group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(
+                        self.compute.write_texture_view.as_ref().unwrap(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(
+                        self.render.read_texture_view.as_ref().unwrap(),
+                    ),
+                },
+            ],
+        }));
+        self.render.bind_group = Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Render Group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(
+                        self.compute.write_texture_view.as_ref().unwrap(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(
+                        self.render.read_texture_view.as_ref().unwrap(),
+                    ),
+                },
+            ],
+        }));
+    }
+}
+
+impl Renderer {
+    pub async fn new(window: std::sync::Arc<winit::window::Window>) -> anyhow::Result<Self> {
+        Ok(Self {
+            window: window.clone(),
+            state: State::new(window).await?,
+            camera: Default::default(),
+        })
+    }
+
     pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
-            self.config.width = width;
-            self.config.height = height;
-            self.surface.configure(&self.device, &self.config);
+            self.state.config.width = width;
+            self.state.config.height = height;
+            self.state
+                .surface
+                .configure(&self.state.device, &self.state.config);
 
-            let size = wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            };
-            self.compute.write_texture =
-                Some(self.device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("Write Texture"),
-                    size,
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: TEXTURE_FORMAT,
-                    usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
-                    view_formats: &[],
-                }));
+            self.state.update_textures(width, height);
 
-            self.render.read_texture = Some(self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Read Texture"),
-                size,
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: TEXTURE_FORMAT,
-                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[],
-            }));
-
-            self.compute.write_texture_view = Some(
-                self.compute
-                    .write_texture
-                    .as_ref()
-                    .unwrap()
-                    .create_view(&Default::default()),
-            );
-            self.render.read_texture_view = Some(
-                self.render
-                    .read_texture
-                    .as_ref()
-                    .unwrap()
-                    .create_view(&Default::default()),
-            );
-            self.compute.bind_group =
-                Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("Compute Group"),
-                    layout: &self.bind_group_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(
-                                self.compute.write_texture_view.as_ref().unwrap(),
-                            ),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::TextureView(
-                                self.render.read_texture_view.as_ref().unwrap(),
-                            ),
-                        },
-                    ],
-                }));
-            self.render.bind_group =
-                Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("Render Group"),
-                    layout: &self.bind_group_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(
-                                self.compute.write_texture_view.as_ref().unwrap(),
-                            ),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::TextureView(
-                                self.render.read_texture_view.as_ref().unwrap(),
-                            ),
-                        },
-                    ],
-                }));
-
-            self.is_surface_configured = true;
+            self.state.is_surface_configured = true;
         }
+    }
+
+    fn run_compute_shader(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("Compute Render Pass"),
+            timestamp_writes: None,
+        });
+        compute_pass.set_bind_group(0, self.state.compute.bind_group.as_ref().unwrap(), &[]);
+        compute_pass.set_pipeline(&self.state.compute.pipeline);
+        compute_pass.dispatch_workgroups(self.state.config.width, self.state.config.height, 1);
+    }
+
+    fn run_texture_shader(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        window_view: &wgpu::TextureView,
+    ) {
+        encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: self.state.compute.write_texture.as_ref().unwrap(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfo {
+                texture: self.state.render.read_texture.as_ref().unwrap(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            self.state.compute.write_texture.as_ref().unwrap().size(),
+        );
+
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: window_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Discard,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&self.state.render.pipeline);
+        render_pass.set_bind_group(0, self.state.render.bind_group.as_ref().unwrap(), &[]);
+        render_pass.draw(0..3, 0..1);
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         // We can't render unless the surface is configured
-        if !self.is_surface_configured {
+        if !self.state.is_surface_configured {
             return Ok(());
         }
 
-        let window = self.surface.get_current_texture()?;
+        let window = self.state.surface.get_current_texture()?;
         let window_view = window.texture.create_view(&Default::default());
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        let mut encoder =
+            self.state
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                });
 
-        {
-            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Compute Render Pass"),
-                timestamp_writes: None,
-            });
-            compute_pass.set_bind_group(0, self.compute.bind_group.as_ref().unwrap(), &[]);
-            compute_pass.set_pipeline(&self.compute.pipeline);
-            compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
-        }
+        self.run_compute_shader(&mut encoder);
+        self.run_texture_shader(&mut encoder, &window_view);
 
-        encoder.copy_texture_to_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: self.compute.write_texture.as_ref().unwrap(),
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyTextureInfo {
-                texture: self.render.read_texture.as_ref().unwrap(),
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            self.compute.write_texture.as_ref().unwrap().size(),
-        );
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &window_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Discard,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            render_pass.set_pipeline(&self.render.pipeline);
-            render_pass.set_bind_group(0, self.render.bind_group.as_ref().unwrap(), &[]);
-            render_pass.draw(0..3, 0..1);
-        }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
-        self.window.pre_present_notify();
+        self.state.queue.submit(std::iter::once(encoder.finish()));
+        self.state.window.pre_present_notify();
         window.present();
 
         Ok(())
