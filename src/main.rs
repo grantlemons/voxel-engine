@@ -9,9 +9,18 @@ use winit::window::{Window, WindowId};
 
 const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba32Float;
 
-#[derive(Default)]
 struct App {
     state: Option<State>,
+    last_frame: std::time::Instant,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            state: Default::default(),
+            last_frame: std::time::Instant::now(),
+        }
+    }
 }
 
 struct ComputeState {
@@ -296,8 +305,6 @@ impl State {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        self.window.request_redraw();
-
         // We can't render unless the surface is configured
         if !self.is_surface_configured {
             return Ok(());
@@ -360,6 +367,7 @@ impl State {
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
+        self.window.pre_present_notify();
         window.present();
 
         Ok(())
@@ -375,8 +383,7 @@ impl State {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        #[allow(unused_mut)]
-        let mut window_attributes = Window::default_attributes();
+        let window_attributes = Window::default_attributes().with_title("Voxel Engine");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.state = Some(pollster::block_on(State::new(window)).unwrap());
     }
@@ -392,22 +399,20 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
-            WindowEvent::RedrawRequested => {
-                let before = std::time::Instant::now();
-                match state.render() {
-                    Ok(_) => {
-                        let after = std::time::Instant::now();
-                        println!("{} fps", 1_000_000 / (after - before).as_micros());
-                    }
-                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                        let size = state.window.inner_size();
-                        state.resize(size.width, size.height);
-                    }
-                    Err(e) => {
-                        println!("Unable to render {}", e);
-                    }
+            WindowEvent::RedrawRequested => match state.render() {
+                Ok(_) => {
+                    let after = std::time::Instant::now();
+                    println!("{} fps", 1_000_000 / (after - self.last_frame).as_micros());
+                    self.last_frame = after;
                 }
-            }
+                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                    let size = state.window.inner_size();
+                    state.resize(size.width, size.height);
+                }
+                Err(e) => {
+                    println!("Unable to render {}", e);
+                }
+            },
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
@@ -425,7 +430,7 @@ impl ApplicationHandler for App {
 fn main() -> Result<(), EventLoopError> {
     let event_loop = EventLoop::new().unwrap();
 
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
 
     let mut app = App::default();
     event_loop.run_app(&mut app)

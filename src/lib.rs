@@ -4,7 +4,6 @@ pub mod block;
 pub mod chunk;
 pub mod contree;
 pub mod generation;
-pub mod rendering;
 
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
