@@ -91,6 +91,7 @@ impl ApplicationHandler for App {
                     renderer.window.request_redraw();
                 }
             },
+            WindowEvent::Focused(false) => self.pressed_keys.clear(),
             _ => {}
         }
     }
