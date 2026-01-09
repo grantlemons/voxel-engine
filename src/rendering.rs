@@ -205,7 +205,7 @@ impl State {
             height,
             depth_or_array_layers: 1,
         };
-        self.compute.write_texture = Some(self.device.create_texture(&wgpu::TextureDescriptor {
+        let write_texture_descriptor = wgpu::TextureDescriptor {
             label: Some("Write Texture"),
             size,
             mip_level_count: 1,
@@ -214,69 +214,47 @@ impl State {
             format: TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
-        }));
-
-        self.render.read_texture = Some(self.device.create_texture(&wgpu::TextureDescriptor {
+        };
+        let write_texture = self.device.create_texture(&write_texture_descriptor);
+        let read_texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Read Texture"),
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        }));
+            ..write_texture_descriptor
+        });
 
-        self.compute.write_texture_view = Some(
-            self.compute
-                .write_texture
-                .as_ref()
-                .unwrap()
-                .create_view(&Default::default()),
-        );
-        self.render.read_texture_view = Some(
-            self.render
-                .read_texture
-                .as_ref()
-                .unwrap()
-                .create_view(&Default::default()),
-        );
-        self.compute.bind_group = Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let write_texture_view = write_texture.create_view(&Default::default());
+        let read_texture_view = read_texture.create_view(&Default::default());
+
+        let compute_bind_group_descriptor = wgpu::BindGroupDescriptor {
             label: Some("Compute Group"),
             layout: &self.bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(
-                        self.compute.write_texture_view.as_ref().unwrap(),
-                    ),
+                    resource: wgpu::BindingResource::TextureView(&write_texture_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(
-                        self.render.read_texture_view.as_ref().unwrap(),
-                    ),
+                    resource: wgpu::BindingResource::TextureView(&read_texture_view),
                 },
             ],
-        }));
-        self.render.bind_group = Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        };
+        let render_bind_group_descriptor = wgpu::BindGroupDescriptor {
             label: Some("Render Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(
-                        self.compute.write_texture_view.as_ref().unwrap(),
-                    ),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(
-                        self.render.read_texture_view.as_ref().unwrap(),
-                    ),
-                },
-            ],
-        }));
+            ..compute_bind_group_descriptor
+        };
+
+        self.compute.bind_group = Some(
+            self.device
+                .create_bind_group(&compute_bind_group_descriptor),
+        );
+        self.render.bind_group = Some(self.device.create_bind_group(&render_bind_group_descriptor));
+
+        self.compute.write_texture = Some(write_texture);
+        self.render.read_texture = Some(read_texture);
+
+        self.compute.write_texture_view = Some(write_texture_view);
+        self.render.read_texture_view = Some(read_texture_view);
     }
 }
 
