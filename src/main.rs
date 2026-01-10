@@ -52,10 +52,18 @@ impl ApplicationHandler for App {
                 Ok(_) => {
                     let after = std::time::Instant::now();
                     let delta_time = after - self.last_time;
+                    //println!("{} fps", 1_000_000 / delta_time.as_micros());
                     self.last_time = after;
 
-                    let move_dist = 20. * delta_time.as_secs_f32();
-                    let rot_dist = 80. * delta_time.as_secs_f32();
+                    let mult = if self.pressed_keys.contains(&KeyCode::ShiftLeft) {
+                        3.
+                    } else if self.pressed_keys.contains(&KeyCode::ControlLeft) {
+                        0.25
+                    } else {
+                        1.
+                    };
+                    let move_dist = 20. * mult * delta_time.as_secs_f32();
+                    let rot_dist = 80. * mult * delta_time.as_secs_f32();
                     for code in &self.pressed_keys {
                         match code {
                             KeyCode::KeyW => renderer.camera_forward_back(move_dist),
@@ -78,6 +86,7 @@ impl ApplicationHandler for App {
                             }
                             KeyCode::ArrowUp => renderer.rot_x(-rot_dist),
                             KeyCode::ArrowDown => renderer.rot_x(rot_dist),
+                            KeyCode::KeyR => renderer.reset_camera(),
                             _ => {}
                         }
                     }

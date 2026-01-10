@@ -280,4 +280,10 @@ impl Renderer {
         self.camera.rotation[2] %= 360.;
         self.window.request_redraw();
     }
+    pub fn reset_camera(&mut self) {
+        self.camera.rotation = Default::default();
+        self.camera.position = Default::default();
+        self.camera.fov = 90.;
+        self.window.request_redraw();
+    }
 }
