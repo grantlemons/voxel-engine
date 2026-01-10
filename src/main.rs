@@ -53,7 +53,7 @@ impl ApplicationHandler for App {
                     println!("{} fps", 1_000_000 / delta_time.as_micros());
                     self.last_time = after;
 
-                    let move_dist = 100. * delta_time.as_secs_f32();
+                    let move_dist = 200. * delta_time.as_secs_f32();
                     for code in &self.pressed_keys {
                         match code {
                             KeyCode::KeyA | KeyCode::ArrowLeft => {
@@ -62,9 +62,9 @@ impl ApplicationHandler for App {
                             KeyCode::KeyD | KeyCode::ArrowRight => {
                                 renderer.camera_left_right(move_dist)
                             }
-                            KeyCode::KeyW | KeyCode::ArrowUp => renderer.camera_up_down(move_dist),
+                            KeyCode::KeyW | KeyCode::ArrowUp => renderer.camera_up_down(-move_dist),
                             KeyCode::KeyS | KeyCode::ArrowDown => {
-                                renderer.camera_up_down(-move_dist)
+                                renderer.camera_up_down(move_dist)
                             }
                             _ => {}
                         }
