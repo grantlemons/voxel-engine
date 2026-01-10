@@ -33,6 +33,9 @@ impl ApplicationHandler for App {
         let window_attributes = Window::default_attributes().with_title("Voxel Engine");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.renderer = Some(pollster::block_on(Renderer::new(window)).unwrap());
+
+        self.renderer.as_mut().unwrap().camera.fov = 90.;
+        self.renderer.as_mut().unwrap().camera.rotation = [0., 0., 0.];
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -40,32 +43,31 @@ impl ApplicationHandler for App {
             Some(s) => s,
             None => return,
         };
-
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
+            WindowEvent::CursorMoved {
+                position: winit::dpi::PhysicalPosition { x, y },
+                ..
+            } => {}
             WindowEvent::Resized(size) => renderer.resize(size.width, size.height),
             WindowEvent::RedrawRequested => match renderer.render() {
                 Ok(_) => {
                     let after = std::time::Instant::now();
                     let delta_time = after - self.last_time;
-                    println!("{} fps", 1_000_000 / delta_time.as_micros());
+                    println!("{:?}", &renderer.camera);
                     self.last_time = after;
 
-                    let move_dist = 200. * delta_time.as_secs_f32();
+                    let move_dist = 100. * delta_time.as_secs_f32();
                     for code in &self.pressed_keys {
                         match code {
-                            KeyCode::KeyA | KeyCode::ArrowLeft => {
-                                renderer.camera_left_right(-move_dist)
-                            }
-                            KeyCode::KeyD | KeyCode::ArrowRight => {
-                                renderer.camera_left_right(move_dist)
-                            }
-                            KeyCode::KeyW | KeyCode::ArrowUp => renderer.camera_up_down(-move_dist),
-                            KeyCode::KeyS | KeyCode::ArrowDown => {
-                                renderer.camera_up_down(move_dist)
-                            }
+                            KeyCode::KeyW | KeyCode::ArrowUp => renderer.camera_z(move_dist),
+                            KeyCode::KeyS | KeyCode::ArrowDown => renderer.camera_z(-move_dist),
+                            KeyCode::KeyA | KeyCode::ArrowLeft => renderer.camera_x(-move_dist),
+                            KeyCode::KeyD | KeyCode::ArrowRight => renderer.camera_x(move_dist),
+                            KeyCode::KeyJ => renderer.rot_x(-move_dist),
+                            KeyCode::KeyL => renderer.rot_x(move_dist),
                             _ => {}
                         }
                     }

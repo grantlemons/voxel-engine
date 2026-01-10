@@ -10,10 +10,10 @@ pub struct Renderer {
 #[repr(C, align(16))]
 #[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Camera {
-    position: [f32; 3],
-    rotation: [f32; 2],
-    fov: f32,
-    padding: [u8; 8],
+    pub position: [f32; 3],
+    pub rotation: [f32; 3],
+    pub fov: f32,
+    padding: [u8; 4],
 }
 
 pub struct ComputeState {
@@ -370,12 +370,31 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn camera_left_right(&mut self, dist: f32) {
+    pub fn camera_x(&mut self, dist: f32) {
         self.camera.position[0] += dist;
         self.window.request_redraw();
     }
-    pub fn camera_up_down(&mut self, dist: f32) {
+    pub fn camera_y(&mut self, dist: f32) {
         self.camera.position[1] += dist;
+        self.window.request_redraw();
+    }
+    pub fn camera_z(&mut self, dist: f32) {
+        self.camera.position[2] += dist;
+        self.window.request_redraw();
+    }
+    pub fn rot_x(&mut self, dist: f32) {
+        self.camera.rotation[0] += dist;
+        self.camera.rotation[0] %= 360.;
+        self.window.request_redraw();
+    }
+    pub fn rot_y(&mut self, dist: f32) {
+        self.camera.rotation[1] += dist;
+        self.camera.rotation[1] %= 360.;
+        self.window.request_redraw();
+    }
+    pub fn rot_z(&mut self, dist: f32) {
+        self.camera.rotation[2] += dist;
+        self.camera.rotation[2] %= 360.;
         self.window.request_redraw();
     }
 }
