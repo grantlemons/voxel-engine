@@ -9,10 +9,14 @@ var<push_constant> camera: Camera;
 @group(0) @binding(0) var write_texture: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(1) var read_texture: texture_storage_2d<rgba32float, read>;
 
+fn euclidian_mod(a: vec2f, b: vec2f) -> vec2f {
+    return a - floor(a / b) * b;
+}
+
 @compute @workgroup_size(8, 8)
 fn cs_main(@builtin(global_invocation_id) id: vec3u) {
     let size = textureDimensions(write_texture);
-    let position_adjusted = (vec2f(id.xy) + camera.position.xy) % vec2f(size);
+    let position_adjusted = euclidian_mod(vec2f(id.xy) + camera.position.xy, vec2f(size));
     let color = vec3f(position_adjusted / vec2f(size), 0.);
     textureStore(write_texture, id.xy, vec4f(color, 1.));
 }
