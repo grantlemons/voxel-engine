@@ -2,12 +2,10 @@ struct Camera {
     position: vec3f,
     rotation: vec3f, // pitch, yaw, roll
     fov: f32,
+    size: vec2u,
 };
 
 var<push_constant> camera: Camera;
-
-@group(0) @binding(0) var write_texture: texture_storage_2d<rgba32float, write>;
-@group(0) @binding(1) var read_texture: texture_storage_2d<rgba32float, read>;
 
 fn euclidian_mod(a: vec2f, b: vec2f) -> vec2f {
     return a - floor(a / b) * b;
@@ -108,20 +106,6 @@ fn calculate_ray_color(pos: vec3f, dir: vec3f) -> vec3f {
     return vec3f(0.);
 }
 
-@compute @workgroup_size(8, 8)
-fn cs_main(@builtin(global_invocation_id) id: vec3u) {
-    let size = vec2f(textureDimensions(write_texture));
-
-    let near_dist = 957.0;
-    //f32(size.x)/(2 * tan(radians(camera.fov/2)));
-    let pixel_vec = vec3f(f32(id.x) - (size.x/2.), f32(id.y) - (size.y/2.), near_dist);
-    let dir = normalize(rotation_matrix(radians(-camera.rotation)) * pixel_vec);
-
-    let color = calculate_ray_color(camera.position, dir);
-
-    textureStore(write_texture, id.yx, vec4f(color, 1.));
-}
-
 @vertex
 fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
     let pos = array(
@@ -135,5 +119,15 @@ fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
 
 @fragment
 fn fs_main(@builtin(position) in: vec4f) -> @location(0) vec4f {
-    return textureLoad(read_texture, vec2u(in.xy));
+    let id = vec2u(in.yx);
+    let size = vec2f(camera.size);
+
+    let near_dist = 957.0;
+    //f32(size.x)/(2 * tan(radians(camera.fov/2)));
+    let pixel_vec = vec3f(f32(id.x) - (size.x/2.), f32(id.y) - (size.y/2.), near_dist);
+    let dir = normalize(rotation_matrix(radians(-camera.rotation)) * pixel_vec);
+
+    let color = calculate_ray_color(camera.position, dir);
+
+    return vec4f(color, 1.);
 }
