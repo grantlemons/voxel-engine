@@ -1,8 +1,8 @@
 struct Camera {
-    position: vec3f,
     rotation: vec3f, // pitch, yaw, roll
-    fov: f32,
+    position: vec3f,
     size: vec2u,
+    fov: f32,
 };
 
 var<push_constant> camera: Camera;
@@ -67,7 +67,7 @@ fn raymarch_intersect(pos: vec3f, dir: vec3f) -> RayHit {
     while (t <= 500.) {
         let dist = map(pos + t * dir);
 
-        if (dist <= 0.01) {
+        if (dist <= 0.001) {
             return RayHit(pos + t * dir, true);
         } else {
             t = t + dist;
@@ -83,7 +83,7 @@ fn compute_brightness(pos: vec3f) -> f32 {
 
     var t = 0.;
 
-    while (t <= 50.) {
+    while (t <= 500.) {
         let dist = min(map(pos + t * dir), light_dist(pos + t * dir));
 
         if (dist <= 0.001) {
@@ -119,15 +119,18 @@ fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
 
 @fragment
 fn fs_main(@builtin(position) in: vec4f) -> @location(0) vec4f {
-    let id = vec2u(in.yx);
     let size = vec2f(camera.size);
+    let pix = vec2f(in.x, size.y - in.y);
 
-    let near_dist = 957.0;
-    //f32(size.x)/(2 * tan(radians(camera.fov/2)));
-    let pixel_vec = vec3f(f32(id.x) - (size.x/2.), f32(id.y) - (size.y/2.), near_dist);
-    let dir = normalize(rotation_matrix(radians(-camera.rotation)) * pixel_vec);
+    let near_dist = (size.x/2) / tan(radians(camera.fov / 2));
+    let pixel_vec = normalize(vec3f(pix.x - (size.x/2.), pix.y - (size.y/2.), near_dist));
+
+    let rot_mat = rotation_matrix(radians(camera.rotation));
+    let right_vec = rot_mat * vec3f(1., 0., 0.);
+    let dir = rot_mat * pixel_vec;
 
     let color = calculate_ray_color(camera.position, dir);
+    //let color = vec3f(pix.xy / size, 0.);
 
     return vec4f(color, 1.);
 }

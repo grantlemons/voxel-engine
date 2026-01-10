@@ -3,16 +3,37 @@ pub struct Renderer {
     pub window: std::sync::Arc<winit::window::Window>,
     pub camera: Camera,
 }
+pub fn rotation_matrix(rad_rot: glam::Vec3) -> glam::Mat3 {
+    glam::mat3(
+        glam::vec3(
+            rad_rot.y.cos() * rad_rot.z.cos(),
+            rad_rot.y.cos() * rad_rot.z.sin(),
+            -rad_rot.y.sin(),
+        ),
+        glam::vec3(
+            rad_rot.x.sin() * rad_rot.y.sin() * rad_rot.z.cos() - rad_rot.x.cos() * rad_rot.z.sin(),
+            rad_rot.x.sin() * rad_rot.y.sin() * rad_rot.z.sin() + rad_rot.x.cos() * rad_rot.z.cos(),
+            rad_rot.x.sin() * rad_rot.y.cos(),
+        ),
+        glam::vec3(
+            rad_rot.x.cos() * rad_rot.y.sin() * rad_rot.z.cos() + rad_rot.x.sin() * rad_rot.z.sin(),
+            rad_rot.x.cos() * rad_rot.y.sin() * rad_rot.z.sin() - rad_rot.x.sin() * rad_rot.z.cos(),
+            rad_rot.x.cos() * rad_rot.y.cos(),
+        ),
+    )
+}
 
 // 32 bytes
 #[repr(C, align(16))]
 #[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Camera {
-    pub position: [f32; 3],
     pub rotation: [f32; 3],
-    pub fov: f32,
+    _padding_1: [u8; 4],
+    pub position: [f32; 3],
+    _padding_2: [u8; 4],
     pub size: [u32; 2],
-    padding: [u8; 12],
+    pub fov: f32,
+    _padding: [u8; 4],
 }
 
 pub struct State {
@@ -156,6 +177,8 @@ impl Renderer {
                 .surface
                 .configure(&self.state.device, &self.state.config);
 
+            self.camera.size = [width, height];
+
             self.state.is_surface_configured = true;
         }
     }
@@ -215,18 +238,33 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn camera_x(&mut self, dist: f32) {
-        self.camera.position[0] += dist;
+    pub fn camera_left_right(&mut self, dist: f32) {
+        let rad_rot = glam::vec3(
+            self.camera.rotation[0].to_radians(),
+            self.camera.rotation[1].to_radians(),
+            self.camera.rotation[2].to_radians(),
+        );
+        let rot_mat = rotation_matrix(rad_rot);
+        let right_dir = rot_mat * glam::vec3(1., 0., 0.);
+
+        let position = glam::Vec3::from_slice(&self.camera.position);
+        self.camera.position = (position + (dist * right_dir)).to_array();
         self.window.request_redraw();
     }
-    pub fn camera_y(&mut self, dist: f32) {
-        self.camera.position[1] += dist;
+    pub fn camera_forward_back(&mut self, dist: f32) {
+        let rad_rot = glam::vec3(
+            self.camera.rotation[0].to_radians(),
+            self.camera.rotation[1].to_radians(),
+            self.camera.rotation[2].to_radians(),
+        );
+        let rot_mat = rotation_matrix(rad_rot);
+        let forward_dir = rot_mat * glam::vec3(0., 0., 1.);
+
+        let position = glam::Vec3::from_slice(&self.camera.position);
+        self.camera.position = (position + (dist * forward_dir)).to_array();
         self.window.request_redraw();
     }
-    pub fn camera_z(&mut self, dist: f32) {
-        self.camera.position[2] += dist;
-        self.window.request_redraw();
-    }
+
     pub fn rot_x(&mut self, dist: f32) {
         self.camera.rotation[0] += dist;
         self.camera.rotation[0] %= 360.;

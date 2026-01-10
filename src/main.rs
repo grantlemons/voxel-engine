@@ -47,27 +47,37 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
-            WindowEvent::CursorMoved {
-                position: winit::dpi::PhysicalPosition { x, y },
-                ..
-            } => {}
             WindowEvent::Resized(size) => renderer.resize(size.width, size.height),
             WindowEvent::RedrawRequested => match renderer.render() {
                 Ok(_) => {
                     let after = std::time::Instant::now();
                     let delta_time = after - self.last_time;
-                    println!("{:?}", &renderer.camera);
                     self.last_time = after;
 
-                    let move_dist = 100. * delta_time.as_secs_f32();
+                    let move_dist = 20. * delta_time.as_secs_f32();
+                    let rot_dist = 80. * delta_time.as_secs_f32();
                     for code in &self.pressed_keys {
                         match code {
-                            KeyCode::KeyW | KeyCode::ArrowUp => renderer.camera_z(move_dist),
-                            KeyCode::KeyS | KeyCode::ArrowDown => renderer.camera_z(-move_dist),
-                            KeyCode::KeyA | KeyCode::ArrowLeft => renderer.camera_x(-move_dist),
-                            KeyCode::KeyD | KeyCode::ArrowRight => renderer.camera_x(move_dist),
-                            KeyCode::KeyJ => renderer.rot_x(-move_dist),
-                            KeyCode::KeyL => renderer.rot_x(move_dist),
+                            KeyCode::KeyW => renderer.camera_forward_back(move_dist),
+                            KeyCode::KeyS => renderer.camera_forward_back(-move_dist),
+                            KeyCode::KeyA => renderer.camera_left_right(-move_dist),
+                            KeyCode::KeyD => renderer.camera_left_right(move_dist),
+                            KeyCode::ArrowLeft => renderer.rot_y(-rot_dist),
+                            KeyCode::ArrowRight => renderer.rot_y(rot_dist),
+                            KeyCode::KeyJ => renderer.rot_z(rot_dist),
+                            KeyCode::KeyL => renderer.rot_z(-rot_dist),
+                            KeyCode::KeyI => {
+                                renderer.camera.fov = (renderer.camera.fov + 1.)
+                                    .clamp(0_f32.next_up(), 180_f32.next_down());
+                                renderer.window.request_redraw();
+                            }
+                            KeyCode::KeyK => {
+                                renderer.camera.fov = (renderer.camera.fov - 1.)
+                                    .clamp(0_f32.next_up(), 180_f32.next_down());
+                                renderer.window.request_redraw();
+                            }
+                            KeyCode::ArrowUp => renderer.rot_x(-rot_dist),
+                            KeyCode::ArrowDown => renderer.rot_x(rot_dist),
                             _ => {}
                         }
                     }
