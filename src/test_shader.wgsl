@@ -120,17 +120,19 @@ fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
 @fragment
 fn fs_main(@builtin(position) in: vec4f) -> @location(0) vec4f {
     let size = vec2f(camera.size);
+
+    if in.x < 0 || in.y < 0 || in.x > size.x || in.y > size.y {
+        return vec4f(0.);
+    }
     let pix = vec2f(in.x, size.y - in.y);
 
     let near_dist = (size.x/2) / tan(radians(camera.fov / 2));
-    let pixel_vec = normalize(vec3f(pix.x - (size.x/2.), pix.y - (size.y/2.), near_dist));
+    let pixel_vec = vec3f(pix.x - (size.x/2.), pix.y - (size.y/2.), near_dist);
 
     let rot_mat = rotation_matrix(radians(camera.rotation));
-    let right_vec = rot_mat * vec3f(1., 0., 0.);
-    let dir = rot_mat * pixel_vec;
+    let dir = rot_mat * normalize(pixel_vec);
 
     let color = calculate_ray_color(camera.position, dir);
-    //let color = vec3f(pix.xy / size, 0.);
 
     return vec4f(color, 1.);
 }

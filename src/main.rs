@@ -33,9 +33,6 @@ impl ApplicationHandler for App {
         let window_attributes = Window::default_attributes().with_title("Voxel Engine");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.renderer = Some(pollster::block_on(Renderer::new(window)).unwrap());
-
-        self.renderer.as_mut().unwrap().camera.fov = 90.;
-        self.renderer.as_mut().unwrap().camera.rotation = [0., 0., 0.];
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -52,7 +49,7 @@ impl ApplicationHandler for App {
                 Ok(_) => {
                     let after = std::time::Instant::now();
                     let delta_time = after - self.last_time;
-                    //println!("{} fps", 1_000_000 / delta_time.as_micros());
+                    // println!("{} fps", 1_000_000 / delta_time.as_micros());
                     self.last_time = after;
 
                     let mult = if self.pressed_keys.contains(&KeyCode::ShiftLeft) {

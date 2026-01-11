@@ -1,31 +1,6 @@
-pub struct Renderer {
-    state: State,
-    pub window: std::sync::Arc<winit::window::Window>,
-    pub camera: Camera,
-}
-pub fn rotation_matrix(rad_rot: glam::Vec3) -> glam::Mat3 {
-    glam::mat3(
-        glam::vec3(
-            rad_rot.y.cos() * rad_rot.z.cos(),
-            rad_rot.y.cos() * rad_rot.z.sin(),
-            -rad_rot.y.sin(),
-        ),
-        glam::vec3(
-            rad_rot.x.sin() * rad_rot.y.sin() * rad_rot.z.cos() - rad_rot.x.cos() * rad_rot.z.sin(),
-            rad_rot.x.sin() * rad_rot.y.sin() * rad_rot.z.sin() + rad_rot.x.cos() * rad_rot.z.cos(),
-            rad_rot.x.sin() * rad_rot.y.cos(),
-        ),
-        glam::vec3(
-            rad_rot.x.cos() * rad_rot.y.sin() * rad_rot.z.cos() + rad_rot.x.sin() * rad_rot.z.sin(),
-            rad_rot.x.cos() * rad_rot.y.sin() * rad_rot.z.sin() - rad_rot.x.sin() * rad_rot.z.cos(),
-            rad_rot.x.cos() * rad_rot.y.cos(),
-        ),
-    )
-}
-
 // 32 bytes
 #[repr(C, align(16))]
-#[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Camera {
     pub rotation: [f32; 3],
     _padding_1: [u8; 4],
@@ -33,9 +8,31 @@ pub struct Camera {
     _padding_2: [u8; 4],
     pub size: [u32; 2],
     pub fov: f32,
-    _padding: [u8; 4],
+    _padding_3: [u8; 4],
 }
 
+impl Default for Camera {
+    fn default() -> Self {
+        Self {
+            rotation: Default::default(),
+            position: Default::default(),
+            size: Default::default(),
+            fov: 90.,
+            _padding_1: Default::default(),
+            _padding_2: Default::default(),
+            _padding_3: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Renderer {
+    state: State,
+    pub window: std::sync::Arc<winit::window::Window>,
+    pub camera: Camera,
+}
+
+#[derive(Debug)]
 pub struct State {
     pub window: std::sync::Arc<winit::window::Window>,
     surface: wgpu::Surface<'static>,
@@ -281,9 +278,30 @@ impl Renderer {
         self.window.request_redraw();
     }
     pub fn reset_camera(&mut self) {
-        self.camera.rotation = Default::default();
-        self.camera.position = Default::default();
-        self.camera.fov = 90.;
+        self.camera = Camera {
+            size: self.camera.size,
+            ..Default::default()
+        };
         self.window.request_redraw();
     }
+}
+
+pub fn rotation_matrix(rad_rot: glam::Vec3) -> glam::Mat3 {
+    glam::mat3(
+        glam::vec3(
+            rad_rot.y.cos() * rad_rot.z.cos(),
+            rad_rot.y.cos() * rad_rot.z.sin(),
+            -rad_rot.y.sin(),
+        ),
+        glam::vec3(
+            rad_rot.x.sin() * rad_rot.y.sin() * rad_rot.z.cos() - rad_rot.x.cos() * rad_rot.z.sin(),
+            rad_rot.x.sin() * rad_rot.y.sin() * rad_rot.z.sin() + rad_rot.x.cos() * rad_rot.z.cos(),
+            rad_rot.x.sin() * rad_rot.y.cos(),
+        ),
+        glam::vec3(
+            rad_rot.x.cos() * rad_rot.y.sin() * rad_rot.z.cos() + rad_rot.x.sin() * rad_rot.z.sin(),
+            rad_rot.x.cos() * rad_rot.y.sin() * rad_rot.z.sin() - rad_rot.x.sin() * rad_rot.z.cos(),
+            rad_rot.x.cos() * rad_rot.y.cos(),
+        ),
+    )
 }
