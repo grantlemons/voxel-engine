@@ -34,11 +34,13 @@ fn fs_main(@builtin(position) in: vec4f) -> @location(0) vec4f {
     }
     let pix = vec2f(in.x, size.y - in.y);
 
-    let near_dist = (size.x/2) / tan(radians(camera.fov / 2));
-    let pixel_vec = vec3f(pix.x - (size.x/2.), pix.y - (size.y/2.), near_dist);
+    // distance between the ray origin and screen based on fov
+    let screen_dist = (size.x/2) / tan(radians(camera.fov / 2));
 
-    let rot_mat = rotation_matrix(radians(camera.rotation));
-    let dir = rot_mat * normalize(pixel_vec);
+    // direction vector to screen pixel from origin
+    let pixel_dir = normalize(vec3f(pix.x - (size.x/2.), pix.y - (size.y/2.), screen_dist));
+
+    let dir = rotation_matrix(radians(camera.rotation)) * pixel_dir;
 
     let color = raymarch(camera.position, dir);
     let tone_mapped = color / (color + 1.);
@@ -60,7 +62,10 @@ fn voxel_normal(p: vec3f, voxel: Voxel) -> vec3f {
     // find rough normal via gradient using the "Tetrahedron technique"
     let k = vec2f(1., -1.);
     return normalize(
-        k.xyy * sd_voxel(p + k.xyy * EPSILON, voxel) + k.yyx * sd_voxel(p + k.yyx * EPSILON, voxel) + k.yxy * sd_voxel(p + k.yxy * EPSILON, voxel) + k.xxx * sd_voxel(p + k.xxx * EPSILON, voxel)
+        k.xyy * sd_voxel(p + k.xyy * EPSILON, voxel)
+        + k.yyx * sd_voxel(p + k.yyx * EPSILON, voxel)
+        + k.yxy * sd_voxel(p + k.yxy * EPSILON, voxel)
+        + k.xxx * sd_voxel(p + k.xxx * EPSILON, voxel)
     );
 }
 
@@ -153,26 +158,22 @@ fn raymarch(start_p: vec3f, start_dir: vec3f) -> vec3f {
 }
 
 fn rotation_matrix(rad_rot: vec3f) -> mat3x3f {
-    // column-wise constructor
-    return mat3x3f(
-        vec3f(
-            cos(rad_rot.y) * cos(rad_rot.z),
-            cos(rad_rot.y) * sin(rad_rot.z),
-            -sin(rad_rot.y),
-        ),
-        vec3f(
-            sin(rad_rot.x) * sin(rad_rot.y) * cos(rad_rot.z)
-                - cos(rad_rot.x) * sin(rad_rot.z),
-            sin(rad_rot.x) * sin(rad_rot.y) * sin(rad_rot.z)
-                + cos(rad_rot.x) * cos(rad_rot.z),
-            sin(rad_rot.x) * cos(rad_rot.y),
-        ),
-        vec3f(
-            cos(rad_rot.x) * sin(rad_rot.y) * cos(rad_rot.z)
-                + sin(rad_rot.x) * sin(rad_rot.z),
-            cos(rad_rot.x) * sin(rad_rot.y) * sin(rad_rot.z)
-                - sin(rad_rot.x) * cos(rad_rot.z),
-            cos(rad_rot.x) * cos(rad_rot.y),
-        ),
+    // intrinsic
+    let Rz = mat3x3f(
+        vec3f(cos(rad_rot.z), sin(rad_rot.z), 0.),
+        vec3f(-sin(rad_rot.z), cos(rad_rot.z), 0.),
+        vec3f(0., 0., 1.),
     );
+    let Ry = mat3x3f(
+        vec3f(cos(rad_rot.y), 0., -sin(rad_rot.y)),
+        vec3f(0., 1., 0.),
+        vec3f(sin(rad_rot.y), 0., cos(rad_rot.y)),
+    );
+    let Rx = mat3x3f(
+        vec3f(1., 0., 0.),
+        vec3f(0., cos(rad_rot.x), sin(rad_rot.x)),
+        vec3f(0., -sin(rad_rot.x), cos(rad_rot.x)),
+    );
+
+    return Rz * Ry * Rx;
 }

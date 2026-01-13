@@ -134,7 +134,7 @@ impl State {
             ],
         });
 
-        let voxels: [Voxel; 3] = [
+        let voxels = [
             Voxel {
                 position: [0., 0., 2.],
                 color: [1., 1., 1.],
@@ -157,7 +157,7 @@ impl State {
             contents: bytemuck::bytes_of(&voxels),
         });
 
-        let lights: [Voxel; 2] = [
+        let lights = [
             Voxel {
                 position: [2., 3., 0.],
                 color: [255. / 255., 237. / 255., 222. / 255.],
