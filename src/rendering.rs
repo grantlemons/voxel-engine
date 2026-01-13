@@ -1,4 +1,5 @@
-// 32 bytes
+use wgpu::util::DeviceExt;
+
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Camera {
@@ -9,6 +10,15 @@ pub struct Camera {
     pub size: [u32; 2],
     pub fov: f32,
     _padding_3: [u8; 4],
+}
+
+#[repr(C, align(16))]
+#[derive(Debug, Default, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Voxel {
+    pub position: [f32; 3],
+    _padding_1: [u8; 4],
+    pub color: [f32; 3],
+    _padding_2: [u8; 4],
 }
 
 impl Default for Camera {
@@ -100,13 +110,92 @@ impl State {
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Bind Group Layout"),
-            entries: &[],
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let voxels: [Voxel; 3] = [
+            Voxel {
+                position: [0., 0., 2.],
+                color: [1., 1., 1.],
+                ..Default::default()
+            },
+            Voxel {
+                position: [1., 0., 3.],
+                color: [1., 1., 1.],
+                ..Default::default()
+            },
+            Voxel {
+                position: [0., 1., 3.],
+                color: [1., 1., 1.],
+                ..Default::default()
+            },
+        ];
+        let voxel_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Voxel List"),
+            usage: wgpu::BufferUsages::STORAGE,
+            contents: bytemuck::bytes_of(&voxels),
+        });
+
+        let lights: [Voxel; 2] = [
+            Voxel {
+                position: [2., 3., 0.],
+                color: [255. / 255., 237. / 255., 222. / 255.],
+                ..Default::default()
+            },
+            Voxel {
+                position: [2., -3., 3.],
+                color: [255. / 255., 237. / 255., 222. / 255.],
+                ..Default::default()
+            },
+        ];
+        let lights_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Light List"),
+            usage: wgpu::BufferUsages::STORAGE,
+            contents: bytemuck::bytes_of(&lights),
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Render Group"),
             layout: &bind_group_layout,
-            entries: &[],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &voxel_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &lights_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+            ],
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
