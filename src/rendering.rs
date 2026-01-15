@@ -1,4 +1,4 @@
-use glam::Vec4Swizzles;
+use glam::{Mat4, Vec3, Vec4Swizzles, vec4};
 use wgpu::util::DeviceExt;
 
 #[repr(C, align(16))]
@@ -24,7 +24,7 @@ pub struct Voxel {
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            rotation_matrix: glam::Mat4::default().to_cols_array(),
+            rotation_matrix: Mat4::default().to_cols_array(),
             position: Default::default(),
             size: Default::default(),
             fov: 60.,
@@ -324,38 +324,36 @@ impl Renderer {
     }
 
     pub fn camera_left_right(&mut self, dist: f32) {
-        let right_dir =
-            glam::Mat4::from_cols_array(&self.camera.rotation_matrix) * glam::vec4(1., 0., 0., 0.);
+        let right_dir = Mat4::from_cols_array(&self.camera.rotation_matrix) * vec4(1., 0., 0., 0.);
 
-        let position = glam::Vec3::from_slice(&self.camera.position);
+        let position = Vec3::from_slice(&self.camera.position);
         self.camera.position = (position + (dist * right_dir.xyz())).to_array();
         self.window.request_redraw();
     }
     pub fn camera_forward_back(&mut self, dist: f32) {
-        let right_dir =
-            glam::Mat4::from_cols_array(&self.camera.rotation_matrix) * glam::vec4(0., 0., 1., 0.);
+        let right_dir = Mat4::from_cols_array(&self.camera.rotation_matrix) * vec4(0., 0., 1., 0.);
 
-        let position = glam::Vec3::from_slice(&self.camera.position);
+        let position = Vec3::from_slice(&self.camera.position);
         self.camera.position = (position + (dist * right_dir.xyz())).to_array();
         self.window.request_redraw();
     }
 
     pub fn rot_x(&mut self, dist: f32) {
-        let rot_mat = glam::Mat4::from_cols_array(&self.camera.rotation_matrix)
-            * glam::Mat4::from_rotation_x((dist % 360.).to_radians());
-        self.camera.rotation_matrix = glam::Mat4::to_cols_array(&rot_mat);
+        let rot_mat = Mat4::from_cols_array(&self.camera.rotation_matrix)
+            * Mat4::from_rotation_x((dist % 360.).to_radians());
+        self.camera.rotation_matrix = Mat4::to_cols_array(&rot_mat);
         self.window.request_redraw();
     }
     pub fn rot_y(&mut self, dist: f32) {
-        let rot_mat = glam::Mat4::from_cols_array(&self.camera.rotation_matrix)
-            * glam::Mat4::from_rotation_y((dist % 360.).to_radians());
-        self.camera.rotation_matrix = glam::Mat4::to_cols_array(&rot_mat);
+        let rot_mat = Mat4::from_cols_array(&self.camera.rotation_matrix)
+            * Mat4::from_rotation_y((dist % 360.).to_radians());
+        self.camera.rotation_matrix = Mat4::to_cols_array(&rot_mat);
         self.window.request_redraw();
     }
     pub fn rot_z(&mut self, dist: f32) {
-        let rot_mat = glam::Mat4::from_cols_array(&self.camera.rotation_matrix)
-            * glam::Mat4::from_rotation_z((dist % 360.).to_radians());
-        self.camera.rotation_matrix = glam::Mat4::to_cols_array(&rot_mat);
+        let rot_mat = Mat4::from_cols_array(&self.camera.rotation_matrix)
+            * Mat4::from_rotation_z((dist % 360.).to_radians());
+        self.camera.rotation_matrix = Mat4::to_cols_array(&rot_mat);
         self.window.request_redraw();
     }
     pub fn reset_camera(&mut self) {
