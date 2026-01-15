@@ -27,7 +27,7 @@ impl Default for Camera {
             rotation: Default::default(),
             position: Default::default(),
             size: Default::default(),
-            fov: 90.,
+            fov: 60.,
             _padding_1: Default::default(),
             _padding_2: Default::default(),
             _padding_3: Default::default(),
