@@ -1,15 +1,15 @@
+use glam::Vec4Swizzles;
 use wgpu::util::DeviceExt;
 
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Camera {
-    pub rotation: [f32; 3],
-    _padding_1: [u8; 4],
+    pub rotation_matrix: [f32; 16],
     pub position: [f32; 3],
-    _padding_2: [u8; 4],
+    _padding: [u8; 4],
     pub size: [u32; 2],
     pub fov: f32,
-    _padding_3: [u8; 4],
+    _padding_2: [u8; 4],
 }
 
 #[repr(C, align(16))]
@@ -24,13 +24,12 @@ pub struct Voxel {
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            rotation: Default::default(),
+            rotation_matrix: glam::Mat4::default().to_cols_array(),
             position: Default::default(),
             size: Default::default(),
             fov: 60.,
-            _padding_1: Default::default(),
+            _padding: Default::default(),
             _padding_2: Default::default(),
-            _padding_3: Default::default(),
         }
     }
 }
@@ -325,45 +324,38 @@ impl Renderer {
     }
 
     pub fn camera_left_right(&mut self, dist: f32) {
-        let rad_rot = glam::vec3(
-            self.camera.rotation[0].to_radians(),
-            self.camera.rotation[1].to_radians(),
-            self.camera.rotation[2].to_radians(),
-        );
-        let rot_mat = rotation_matrix(rad_rot);
-        let right_dir = rot_mat * glam::vec3(1., 0., 0.);
+        let right_dir =
+            glam::Mat4::from_cols_array(&self.camera.rotation_matrix) * glam::vec4(1., 0., 0., 0.);
 
         let position = glam::Vec3::from_slice(&self.camera.position);
-        self.camera.position = (position + (dist * right_dir)).to_array();
+        self.camera.position = (position + (dist * right_dir.xyz())).to_array();
         self.window.request_redraw();
     }
     pub fn camera_forward_back(&mut self, dist: f32) {
-        let rad_rot = glam::vec3(
-            self.camera.rotation[0].to_radians(),
-            self.camera.rotation[1].to_radians(),
-            self.camera.rotation[2].to_radians(),
-        );
-        let rot_mat = rotation_matrix(rad_rot);
-        let forward_dir = rot_mat * glam::vec3(0., 0., 1.);
+        let right_dir =
+            glam::Mat4::from_cols_array(&self.camera.rotation_matrix) * glam::vec4(0., 0., 1., 0.);
 
         let position = glam::Vec3::from_slice(&self.camera.position);
-        self.camera.position = (position + (dist * forward_dir)).to_array();
+        self.camera.position = (position + (dist * right_dir.xyz())).to_array();
         self.window.request_redraw();
     }
 
     pub fn rot_x(&mut self, dist: f32) {
-        self.camera.rotation[0] += dist;
-        self.camera.rotation[0] %= 360.;
+        let rot_mat = glam::Mat4::from_cols_array(&self.camera.rotation_matrix)
+            * glam::Mat4::from_rotation_x((dist % 360.).to_radians());
+        self.camera.rotation_matrix = glam::Mat4::to_cols_array(&rot_mat);
         self.window.request_redraw();
     }
     pub fn rot_y(&mut self, dist: f32) {
-        self.camera.rotation[1] += dist;
-        self.camera.rotation[1] %= 360.;
+        let rot_mat = glam::Mat4::from_cols_array(&self.camera.rotation_matrix)
+            * glam::Mat4::from_rotation_y((dist % 360.).to_radians());
+        self.camera.rotation_matrix = glam::Mat4::to_cols_array(&rot_mat);
         self.window.request_redraw();
     }
     pub fn rot_z(&mut self, dist: f32) {
-        self.camera.rotation[2] += dist;
-        self.camera.rotation[2] %= 360.;
+        let rot_mat = glam::Mat4::from_cols_array(&self.camera.rotation_matrix)
+            * glam::Mat4::from_rotation_z((dist % 360.).to_radians());
+        self.camera.rotation_matrix = glam::Mat4::to_cols_array(&rot_mat);
         self.window.request_redraw();
     }
     pub fn reset_camera(&mut self) {
@@ -373,24 +365,4 @@ impl Renderer {
         };
         self.window.request_redraw();
     }
-}
-
-pub fn rotation_matrix(rad_rot: glam::Vec3) -> glam::Mat3 {
-    glam::mat3(
-        glam::vec3(
-            rad_rot.y.cos() * rad_rot.z.cos(),
-            rad_rot.y.cos() * rad_rot.z.sin(),
-            -rad_rot.y.sin(),
-        ),
-        glam::vec3(
-            rad_rot.x.sin() * rad_rot.y.sin() * rad_rot.z.cos() - rad_rot.x.cos() * rad_rot.z.sin(),
-            rad_rot.x.sin() * rad_rot.y.sin() * rad_rot.z.sin() + rad_rot.x.cos() * rad_rot.z.cos(),
-            rad_rot.x.sin() * rad_rot.y.cos(),
-        ),
-        glam::vec3(
-            rad_rot.x.cos() * rad_rot.y.sin() * rad_rot.z.cos() + rad_rot.x.sin() * rad_rot.z.sin(),
-            rad_rot.x.cos() * rad_rot.y.sin() * rad_rot.z.sin() - rad_rot.x.sin() * rad_rot.z.cos(),
-            rad_rot.x.cos() * rad_rot.y.cos(),
-        ),
-    )
 }

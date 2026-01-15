@@ -1,5 +1,5 @@
 struct Camera {
-    rotation: vec3f, // pitch, yaw, roll
+    rotation_matrix: mat4x4f,
     position: vec3f,
     size: vec2u,
     fov: f32,
@@ -40,7 +40,8 @@ fn fs_main(@builtin(position) in: vec4f) -> @location(0) vec4f {
     // direction vector to screen pixel from origin
     let pixel_dir = normalize(vec3f(pix.x - (size.x/2.), pix.y - (size.y/2.), screen_dist));
 
-    let dir = rotation_matrix(radians(camera.rotation)) * pixel_dir;
+    let rot_mat = mat3x3f(camera.rotation_matrix[0].xyz, camera.rotation_matrix[1].xyz, camera.rotation_matrix[2].xyz);
+    let dir = rot_mat * pixel_dir;
 
     let color = raymarch(camera.position, dir);
     let tone_mapped = color / (color + 1.);
