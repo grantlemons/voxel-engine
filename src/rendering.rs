@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3, Vec4Swizzles, vec4};
+use glam::{Mat4, Vec3, Vec4, Vec4Swizzles, vec4};
 use wgpu::util::DeviceExt;
 
 #[repr(C, align(16))]
@@ -341,19 +341,19 @@ impl Renderer {
     pub fn rot_x(&mut self, dist: f32) {
         let rot_mat = Mat4::from_cols_array(&self.camera.rotation_matrix)
             * Mat4::from_rotation_x((dist % 360.).to_radians());
-        self.camera.rotation_matrix = Mat4::to_cols_array(&rot_mat);
+        self.camera.rotation_matrix = rot_mat.to_cols_array();
         self.window.request_redraw();
     }
     pub fn rot_y(&mut self, dist: f32) {
         let rot_mat = Mat4::from_cols_array(&self.camera.rotation_matrix)
             * Mat4::from_rotation_y((dist % 360.).to_radians());
-        self.camera.rotation_matrix = Mat4::to_cols_array(&rot_mat);
+        self.camera.rotation_matrix = rot_mat.to_cols_array();
         self.window.request_redraw();
     }
     pub fn rot_z(&mut self, dist: f32) {
         let rot_mat = Mat4::from_cols_array(&self.camera.rotation_matrix)
             * Mat4::from_rotation_z((dist % 360.).to_radians());
-        self.camera.rotation_matrix = Mat4::to_cols_array(&rot_mat);
+        self.camera.rotation_matrix = rot_mat.to_cols_array();
         self.window.request_redraw();
     }
     pub fn reset_camera(&mut self) {

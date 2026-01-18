@@ -2,8 +2,9 @@ use std::{collections::HashSet, sync::Arc};
 
 use winit::{
     application::ApplicationHandler,
+    dpi::{LogicalPosition, PhysicalPosition},
     error::EventLoopError,
-    event::{KeyEvent, WindowEvent},
+    event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
@@ -35,6 +36,22 @@ impl ApplicationHandler for App {
         self.renderer = Some(pollster::block_on(Renderer::new(window)).unwrap());
     }
 
+    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
+        let renderer = match &mut self.renderer {
+            Some(s) => s,
+            None => return,
+        };
+        match event {
+            DeviceEvent::MouseMotion { delta: (x, y) } => {
+                let delta_time = std::time::Instant::now() - self.last_time;
+                let rot_mult = 5. * delta_time.as_secs_f32();
+                renderer.rot_y(x as f32 * rot_mult);
+                renderer.rot_x(y as f32 * rot_mult);
+            }
+            _ => {}
+        }
+    }
+
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         let renderer = match &mut self.renderer {
             Some(s) => s,
@@ -45,11 +62,21 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => renderer.resize(size.width, size.height),
+            WindowEvent::CursorEntered { .. } => {
+                renderer.window.set_cursor_visible(false);
+                if let Err(err) = renderer
+                    .window
+                    .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+                {
+                    panic!("Error setting cursor grab: {err}");
+                }
+            }
             WindowEvent::RedrawRequested => match renderer.render() {
                 Ok(_) => {
                     let after = std::time::Instant::now();
                     let delta_time = after - self.last_time;
-                    // println!("{} fps", 1_000_000 / delta_time.as_micros());
+                    println!("{} fps", 1_000_000 / delta_time.as_micros());
+
                     self.last_time = after;
 
                     let mult = if self.pressed_keys.contains(&KeyCode::ShiftLeft) {
@@ -67,10 +94,8 @@ impl ApplicationHandler for App {
                             KeyCode::KeyS => renderer.camera_forward_back(-move_dist),
                             KeyCode::KeyA => renderer.camera_left_right(-move_dist),
                             KeyCode::KeyD => renderer.camera_left_right(move_dist),
-                            KeyCode::ArrowLeft => renderer.rot_y(-rot_dist),
-                            KeyCode::ArrowRight => renderer.rot_y(rot_dist),
-                            KeyCode::KeyJ => renderer.rot_z(rot_dist),
-                            KeyCode::KeyL => renderer.rot_z(-rot_dist),
+                            KeyCode::ArrowLeft => renderer.rot_z(-rot_dist),
+                            KeyCode::ArrowRight => renderer.rot_z(rot_dist),
                             KeyCode::KeyI => {
                                 renderer.camera.fov = (renderer.camera.fov + 1.)
                                     .clamp(0_f32.next_up(), 180_f32.next_down());
@@ -81,8 +106,6 @@ impl ApplicationHandler for App {
                                     .clamp(0_f32.next_up(), 180_f32.next_down());
                                 renderer.window.request_redraw();
                             }
-                            KeyCode::ArrowUp => renderer.rot_x(-rot_dist),
-                            KeyCode::ArrowDown => renderer.rot_x(rot_dist),
                             KeyCode::KeyR => renderer.reset_camera(),
                             _ => {}
                         }
@@ -109,6 +132,13 @@ impl ApplicationHandler for App {
                 self.last_time = std::time::Instant::now();
                 match (code, key_state.is_pressed()) {
                     (KeyCode::KeyQ, true) => event_loop.exit(),
+                    (KeyCode::Escape, true) => {
+                        renderer
+                            .window
+                            .set_cursor_grab(winit::window::CursorGrabMode::None)
+                            .unwrap();
+                        renderer.window.set_cursor_visible(true);
+                    }
                     (code, true) => {
                         self.pressed_keys.insert(code);
                         renderer.window.request_redraw();
