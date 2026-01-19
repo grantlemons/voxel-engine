@@ -51,7 +51,7 @@ fn morton_code(norm_p: UVec3) -> u64 {
         for (i, mn) in magic_numbers.iter().enumerate().rev() {
             x = (x | x << (1 << (i + 1))) & mn;
         }
-        return x;
+        x
     }
     (interleave(norm_p.x) << 2) | (interleave(norm_p.y) << 1) | interleave(norm_p.z)
 }
@@ -95,7 +95,7 @@ impl Contree {
             }
             None => {
                 self.inners.push(new_node);
-                (self.inners.len() - 1) as u32
+                (self.inners.len() - 1) as Addr
             }
         }
     }
@@ -114,10 +114,10 @@ impl Contree {
             }
             None => {
                 self.inners.push(new_node);
-                (self.inners.len() - 1) as u32
+                (self.inners.len() - 1) as Addr
             }
         };
-        self.inners[parent as usize].children[index] = addr as u32;
+        self.inners[parent as usize].children[index] = addr;
         self.update_parent_bitflags(parent, index, true, false, false);
         addr
     }
@@ -135,10 +135,10 @@ impl Contree {
             }
             None => {
                 self.leaves.push(new_node);
-                (self.leaves.len() - 1) as u32
+                (self.leaves.len() - 1) as Addr
             }
         };
-        self.inners[parent as usize].children[index] = addr as u32;
+        self.inners[parent as usize].children[index] = addr;
         self.update_parent_bitflags(parent, index, true, true, false);
         addr
     }
@@ -151,7 +151,7 @@ impl Contree {
         leaf: bool,
         light: bool,
     ) {
-        let mask = (1 as u64) << child;
+        let mask = (1_u64) << child;
 
         let parent_node = &mut self.inners[parent as usize];
         parent_node.contains &= !mask;
@@ -167,7 +167,7 @@ impl Contree {
         while !self.in_bounds(pos) {
             let new_root = self.new_root_node();
             let self_index = 0;
-            self.inners[new_root as usize].children[self_index] = self.root as u32;
+            self.inners[new_root as usize].children[self_index] = self.root;
             self.root = new_root;
             self.size *= 8;
             todo!()
@@ -191,7 +191,7 @@ impl Contree {
             }
             None => {
                 let (leaf_addr, child_index) =
-                    self.add_parents(&mut traversal_stack, &mut parent_addrs);
+                    self.add_parents(&traversal_stack, &mut parent_addrs);
 
                 let leaf = self
                     .leaves
@@ -202,16 +202,16 @@ impl Contree {
                 leaf.contains |= 1 << child_index;
             }
         }
-        return parent_addrs;
+        parent_addrs
     }
 
     fn add_parents(
         &mut self,
-        traversal_stack: &mut Vec<ChildIndex>,
+        traversal_stack: &[ChildIndex],
         parent_addrs: &mut Vec<Addr>,
     ) -> (Addr, ChildIndex) {
         let mut leaf_addr = 0;
-        for (i, child_index) in traversal_stack.clone().iter().enumerate().rev() {
+        for (i, child_index) in traversal_stack.iter().enumerate().rev() {
             let parent: Addr = *parent_addrs.last().expect("No root!");
             match i {
                 0 => return (leaf_addr, *child_index),
