@@ -2,7 +2,6 @@ use std::{collections::HashSet, sync::Arc};
 
 use winit::{
     application::ApplicationHandler,
-    dpi::{LogicalPosition, PhysicalPosition},
     error::EventLoopError,
     event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
@@ -43,8 +42,7 @@ impl ApplicationHandler for App {
         };
         match event {
             DeviceEvent::MouseMotion { delta: (x, y) } => {
-                let delta_time = std::time::Instant::now() - self.last_time;
-                let rot_mult = 5. * delta_time.as_secs_f32();
+                let rot_mult = 0.2;
                 renderer.rot_y(x as f32 * rot_mult);
                 renderer.rot_x(y as f32 * rot_mult);
             }
@@ -75,7 +73,6 @@ impl ApplicationHandler for App {
                 Ok(_) => {
                     let after = std::time::Instant::now();
                     let delta_time = after - self.last_time;
-                    println!("{} fps", 1_000_000 / delta_time.as_micros());
 
                     self.last_time = after;
 
@@ -94,8 +91,8 @@ impl ApplicationHandler for App {
                             KeyCode::KeyS => renderer.camera_forward_back(-move_dist),
                             KeyCode::KeyA => renderer.camera_left_right(-move_dist),
                             KeyCode::KeyD => renderer.camera_left_right(move_dist),
-                            KeyCode::ArrowLeft => renderer.rot_z(-rot_dist),
-                            KeyCode::ArrowRight => renderer.rot_z(rot_dist),
+                            KeyCode::ArrowLeft => renderer.rot_z(rot_dist),
+                            KeyCode::ArrowRight => renderer.rot_z(-rot_dist),
                             KeyCode::KeyI => {
                                 renderer.camera.fov = (renderer.camera.fov + 1.)
                                     .clamp(0_f32.next_up(), 180_f32.next_down());

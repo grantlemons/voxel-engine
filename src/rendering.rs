@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3, Vec4, Vec4Swizzles, vec4};
+use glam::{Mat4, Vec3, Vec4Swizzles, vec4};
 use wgpu::util::DeviceExt;
 
 #[repr(C, align(16))]
