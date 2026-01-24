@@ -73,8 +73,24 @@ impl ApplicationHandler for App {
                 Ok(_) => {
                     let after = std::time::Instant::now();
                     let delta_time = after - self.last_time;
-
                     self.last_time = after;
+
+                    let buffer = renderer.buffers.voxels_staging.clone();
+                    let window = renderer.window.clone();
+                    renderer.buffers.voxels_staging.map_async(
+                        wgpu::MapMode::Write,
+                        ..,
+                        move |_| {
+                            {
+                                let mut view = buffer.get_mapped_range_mut(..);
+                                let voxels: &mut [rendering::Voxel] =
+                                    bytemuck::cast_slice_mut(&mut view);
+                                voxels[0].position[2] += 5. * delta_time.as_secs_f32();
+                            }
+                            buffer.unmap();
+                            window.request_redraw();
+                        },
+                    );
 
                     let mult = if self.pressed_keys.contains(&KeyCode::ShiftLeft) {
                         3.

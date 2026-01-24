@@ -34,7 +34,7 @@ fn calculate_brightness(p: vec3f, dir: vec3f) -> vec3f {
 }
 
 // calculate the color of a hit based on the material and lighting
-fn calculate_color(p: vec3f, dir: vec3f) -> vec3f {
+fn calculate_color(p: vec3f, dir: vec3f, material: u32) -> vec3f {
     return vec3f(0.);
 }
 

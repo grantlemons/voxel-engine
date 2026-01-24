@@ -1,24 +1,61 @@
+use std::sync::{Arc, LazyLock};
+
 use glam::{Mat4, Vec3, Vec4Swizzles, vec4};
 use wgpu::util::DeviceExt;
+
+pub static VOXELS: LazyLock<[Voxel; 3]> = LazyLock::new(|| {
+    [
+        Voxel {
+            position: [0., 0., 2.],
+            color: [1., 1., 1.],
+            ..Default::default()
+        },
+        Voxel {
+            position: [1., 0., 3.],
+            color: [1., 1., 1.],
+            ..Default::default()
+        },
+        Voxel {
+            position: [0., 1., 3.],
+            color: [1., 1., 1.],
+            ..Default::default()
+        },
+    ]
+});
+
+pub static LIGHTS: LazyLock<[Voxel; 2]> = LazyLock::new(|| {
+    [
+        Voxel {
+            position: [2., 3., 0.],
+            color: [255. / 255., 237. / 255., 222. / 255.],
+            ..Default::default()
+        },
+        Voxel {
+            position: [2., -3., 3.],
+            color: [255. / 255., 237. / 255., 222. / 255.],
+            ..Default::default()
+        },
+    ]
+});
 
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Camera {
     pub rotation_matrix: [f32; 16],
     pub position: [f32; 3],
-    _padding: [u8; 4],
+    _padding_1: u32,
     pub size: [u32; 2],
     pub fov: f32,
-    _padding_2: [u8; 4],
+    _padding_2: u32,
 }
 
 #[repr(C, align(16))]
 #[derive(Debug, Default, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Voxel {
     pub position: [f32; 3],
-    _padding_1: [u8; 4],
+    _padding_1: u32,
     pub color: [f32; 3],
-    _padding_2: [u8; 4],
+    _padding_2: u32,
 }
 
 impl Default for Camera {
@@ -28,7 +65,7 @@ impl Default for Camera {
             position: Default::default(),
             size: Default::default(),
             fov: 60.,
-            _padding: Default::default(),
+            _padding_1: Default::default(),
             _padding_2: Default::default(),
         }
     }
@@ -37,13 +74,21 @@ impl Default for Camera {
 #[derive(Debug)]
 pub struct Renderer {
     state: State,
-    pub window: std::sync::Arc<winit::window::Window>,
+    pub window: Arc<winit::window::Window>,
     pub camera: Camera,
+    pub buffers: Arc<Buffers>,
+}
+
+#[derive(Debug)]
+pub struct Buffers {
+    pub voxels_staging: wgpu::Buffer,
+    voxels_storage: wgpu::Buffer,
+    pub lights: wgpu::Buffer,
 }
 
 #[derive(Debug)]
 pub struct State {
-    pub window: std::sync::Arc<winit::window::Window>,
+    pub window: Arc<winit::window::Window>,
     surface: wgpu::Surface<'static>,
     is_surface_configured: bool,
     device: wgpu::Device,
@@ -51,10 +96,11 @@ pub struct State {
     config: wgpu::SurfaceConfiguration,
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
+    buffers: Arc<Buffers>,
 }
 
 impl State {
-    pub async fn new(window: std::sync::Arc<winit::window::Window>) -> anyhow::Result<Self> {
+    pub async fn new(window: Arc<winit::window::Window>) -> anyhow::Result<Self> {
         let num_push_vectors = std::mem::size_of::<[Camera; 1]>() as u32;
         let size = window.inner_size();
 
@@ -133,45 +179,23 @@ impl State {
             ],
         });
 
-        let voxels = [
-            Voxel {
-                position: [0., 0., 2.],
-                color: [1., 1., 1.],
-                ..Default::default()
-            },
-            Voxel {
-                position: [1., 0., 3.],
-                color: [1., 1., 1.],
-                ..Default::default()
-            },
-            Voxel {
-                position: [0., 1., 3.],
-                color: [1., 1., 1.],
-                ..Default::default()
-            },
-        ];
-        let voxel_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Voxel List"),
-            usage: wgpu::BufferUsages::STORAGE,
-            contents: bytemuck::bytes_of(&voxels),
+        let voxels_staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Writable Voxel List"),
+            usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::COPY_SRC,
+            contents: bytemuck::bytes_of(&*VOXELS),
         });
 
-        let lights = [
-            Voxel {
-                position: [2., 3., 0.],
-                color: [255. / 255., 237. / 255., 222. / 255.],
-                ..Default::default()
-            },
-            Voxel {
-                position: [2., -3., 3.],
-                color: [255. / 255., 237. / 255., 222. / 255.],
-                ..Default::default()
-            },
-        ];
-        let lights_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let voxels_storage = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Voxel List"),
+            size: size_of_val(&*VOXELS) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let lights = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Light List"),
             usage: wgpu::BufferUsages::STORAGE,
-            contents: bytemuck::bytes_of(&lights),
+            contents: bytemuck::bytes_of(&*LIGHTS),
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -181,7 +205,7 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &voxel_buffer,
+                        buffer: &voxels_storage,
                         offset: 0,
                         size: None,
                     }),
@@ -189,7 +213,7 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &lights_buffer,
+                        buffer: &lights,
                         offset: 0,
                         size: None,
                     }),
@@ -241,15 +265,22 @@ impl State {
             config,
             pipeline,
             bind_group,
+            buffers: Arc::new(Buffers {
+                voxels_staging,
+                voxels_storage,
+                lights,
+            }),
         })
     }
 }
 
 impl Renderer {
-    pub async fn new(window: std::sync::Arc<winit::window::Window>) -> anyhow::Result<Self> {
+    pub async fn new(window: Arc<winit::window::Window>) -> anyhow::Result<Self> {
+        let state = State::new(window.clone()).await?;
         Ok(Self {
-            window: window.clone(),
-            state: State::new(window).await?,
+            window,
+            buffers: state.buffers.clone(),
+            state,
             camera: Default::default(),
         })
     }
@@ -314,8 +345,21 @@ impl Renderer {
                     label: Some("Render Encoder"),
                 });
 
-        self.run_texture_shader(&mut encoder, &window_view);
+        encoder.copy_buffer_to_buffer(
+            &self.buffers.voxels_staging,
+            0,
+            &self.buffers.voxels_storage,
+            0,
+            self.buffers.voxels_staging.size(),
+        );
 
+        // run callback and unmap buffers
+        self.state
+            .device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .unwrap();
+
+        self.run_texture_shader(&mut encoder, &window_view);
         self.state.queue.submit(std::iter::once(encoder.finish()));
         self.state.window.pre_present_notify();
         window.present();
