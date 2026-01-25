@@ -75,22 +75,21 @@ impl ApplicationHandler for App {
                     let delta_time = after - self.last_time;
                     self.last_time = after;
 
-                    let buffer = renderer.buffers.voxels_staging.clone();
-                    let window = renderer.window.clone();
-                    renderer.buffers.voxels_staging.map_async(
-                        wgpu::MapMode::Write,
-                        ..,
-                        move |_| {
-                            {
-                                let mut view = buffer.get_mapped_range_mut(..);
-                                let voxels: &mut [rendering::Voxel] =
-                                    bytemuck::cast_slice_mut(&mut view);
-                                voxels[0].position[2] += 5. * delta_time.as_secs_f32();
-                            }
-                            buffer.unmap();
-                            window.request_redraw();
-                        },
-                    );
+                    let new_data = bytemuck::cast_slice(&[rendering::Voxel {
+                        position: [10., 10., 10.],
+                        color: [1., 1., 1.],
+                        ..Default::default()
+                    }])
+                    .to_vec();
+                    renderer
+                        .buffer_writer
+                        .0
+                        .try_send(rendering::BufferWriteCommand {
+                            target_buffer: renderer.buffers.voxels.clone(),
+                            offset: size_of::<rendering::Voxel>() as u64 * 1,
+                            new_data,
+                        })
+                        .unwrap();
 
                     let mult = if self.pressed_keys.contains(&KeyCode::ShiftLeft) {
                         3.

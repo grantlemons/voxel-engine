@@ -38,6 +38,12 @@ pub static LIGHTS: LazyLock<[Voxel; 2]> = LazyLock::new(|| {
     ]
 });
 
+pub struct BufferWriteCommand {
+    pub target_buffer: wgpu::Buffer,
+    pub offset: u64,
+    pub new_data: Vec<u8>,
+}
+
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Camera {
@@ -53,9 +59,9 @@ pub struct Camera {
 #[derive(Debug, Default, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Voxel {
     pub position: [f32; 3],
-    _padding_1: u32,
+    pub _padding_1: u32,
     pub color: [f32; 3],
-    _padding_2: u32,
+    pub _padding_2: u32,
 }
 
 impl Default for Camera {
@@ -77,12 +83,15 @@ pub struct Renderer {
     pub window: Arc<winit::window::Window>,
     pub camera: Camera,
     pub buffers: Arc<Buffers>,
+    pub buffer_writer: (
+        flume::Sender<BufferWriteCommand>,
+        flume::Receiver<BufferWriteCommand>,
+    ),
 }
 
 #[derive(Debug)]
 pub struct Buffers {
-    pub voxels_staging: wgpu::Buffer,
-    voxels_storage: wgpu::Buffer,
+    pub voxels: wgpu::Buffer,
     pub lights: wgpu::Buffer,
 }
 
@@ -179,17 +188,10 @@ impl State {
             ],
         });
 
-        let voxels_staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Writable Voxel List"),
-            usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::COPY_SRC,
-            contents: bytemuck::bytes_of(&*VOXELS),
-        });
-
-        let voxels_storage = device.create_buffer(&wgpu::BufferDescriptor {
+        let voxels = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Voxel List"),
-            size: size_of_val(&*VOXELS) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
+            contents: bytemuck::bytes_of(&*VOXELS),
         });
 
         let lights = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -205,7 +207,7 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &voxels_storage,
+                        buffer: &voxels,
                         offset: 0,
                         size: None,
                     }),
@@ -265,11 +267,7 @@ impl State {
             config,
             pipeline,
             bind_group,
-            buffers: Arc::new(Buffers {
-                voxels_staging,
-                voxels_storage,
-                lights,
-            }),
+            buffers: Arc::new(Buffers { voxels, lights }),
         })
     }
 }
@@ -282,6 +280,7 @@ impl Renderer {
             buffers: state.buffers.clone(),
             state,
             camera: Default::default(),
+            buffer_writer: flume::unbounded(),
         })
     }
 
@@ -345,22 +344,24 @@ impl Renderer {
                     label: Some("Render Encoder"),
                 });
 
-        encoder.copy_buffer_to_buffer(
-            &self.buffers.voxels_staging,
-            0,
-            &self.buffers.voxels_storage,
-            0,
-            self.buffers.voxels_staging.size(),
-        );
-
-        // run callback and unmap buffers
-        self.state
-            .device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .unwrap();
+        let mut belt = wgpu::util::StagingBelt::new(100);
+        for command in self.buffer_writer.1.try_iter() {
+            let mut view = belt.write_buffer(
+                &mut encoder,
+                &command.target_buffer,
+                command.offset,
+                std::num::NonZero::new(command.new_data.len() as u64).unwrap(),
+                &self.state.device,
+            );
+            view.copy_from_slice(&command.new_data);
+        }
+        belt.finish();
 
         self.run_texture_shader(&mut encoder, &window_view);
         self.state.queue.submit(std::iter::once(encoder.finish()));
+
+        belt.recall();
+
         self.state.window.pre_present_notify();
         window.present();
 
