@@ -83,10 +83,8 @@ pub struct Renderer {
     pub window: Arc<winit::window::Window>,
     pub camera: Camera,
     pub buffers: Arc<Buffers>,
-    pub buffer_writer: (
-        flume::Sender<BufferWriteCommand>,
-        flume::Receiver<BufferWriteCommand>,
-    ),
+    pub buffer_writer: flume::Sender<BufferWriteCommand>,
+    buffer_reader: flume::Receiver<BufferWriteCommand>,
 }
 
 #[derive(Debug)]
@@ -275,12 +273,14 @@ impl State {
 impl Renderer {
     pub async fn new(window: Arc<winit::window::Window>) -> anyhow::Result<Self> {
         let state = State::new(window.clone()).await?;
+        let (buffer_writer, buffer_reader) = flume::unbounded();
         Ok(Self {
             window,
             buffers: state.buffers.clone(),
             state,
             camera: Default::default(),
-            buffer_writer: flume::unbounded(),
+            buffer_writer,
+            buffer_reader,
         })
     }
 
@@ -345,7 +345,7 @@ impl Renderer {
                 });
 
         let mut belt = wgpu::util::StagingBelt::new(100);
-        for command in self.buffer_writer.1.try_iter() {
+        for command in self.buffer_reader.try_iter() {
             let mut view = belt.write_buffer(
                 &mut encoder,
                 &command.target_buffer,

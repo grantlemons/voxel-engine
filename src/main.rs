@@ -83,7 +83,6 @@ impl ApplicationHandler for App {
                     .to_vec();
                     renderer
                         .buffer_writer
-                        .0
                         .try_send(rendering::BufferWriteCommand {
                             target_buffer: renderer.buffers.voxels.clone(),
                             offset: size_of::<rendering::Voxel>() as u64 * 1,
