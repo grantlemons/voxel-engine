@@ -155,16 +155,14 @@ impl State {
         let voxels = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Voxel List"),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            size: dbg!(
-                device.limits().max_storage_buffer_binding_size as u64 / 16_u64.strict_pow(3)
-            ),
+            size: device.limits().max_storage_buffer_binding_size as u64,
             mapped_at_creation: false,
         });
 
         let lights = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Light List"),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            size: device.limits().max_storage_buffer_binding_size as u64 / 16_u64.strict_pow(3),
+            size: device.limits().max_storage_buffer_binding_size as u64,
             mapped_at_creation: false,
         });
 

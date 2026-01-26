@@ -39,12 +39,12 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        dbg!("window resumed, reconstructing renderer");
         let window_attributes = Window::default_attributes().with_title("Voxel Engine");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.renderer = Some(pollster::block_on(Renderer::new(window)).unwrap());
 
         if let Some(ref renderer) = self.renderer {
-            dbg!("loading starting data");
             renderer
                 .buffer_writer
                 .send(BufferWriteCommand {

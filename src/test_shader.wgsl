@@ -76,7 +76,8 @@ struct ClosestVoxel {
 }
 
 fn closest_voxel(p: vec3f) -> ClosestVoxel {
-    let num_voxels = arrayLength(&voxels);
+    //let num_voxels = arrayLength(&voxels);
+    let num_voxels = 3u;
 
     var min_voxel: Voxel = voxels[0];
     var min_distance: f32 = sd_voxel(p, min_voxel);
@@ -114,8 +115,9 @@ fn light_brightness(p: vec3f, light_dir: vec3f, w: f32, max_distance: f32) -> f3
 
 fn calculate_color(p: vec3f, norm: vec3f, material_color: vec3f) -> vec3f {
     var light_color = vec3f(0.05);
+    let num_lights = 2u;
 
-    for (var i = 0u; i < arrayLength(&lights); i++) {
+    for (var i = 0u; i < num_lights; i++) {
         let light_dir = normalize(lights[i].position - p);
         let light_dist = length(lights[i].position - p);
 
