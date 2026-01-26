@@ -2,6 +2,10 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{IVec3, UVec3, Vec3};
 
+use crate::contree::gpu_binding::GPUBinding;
+
+mod gpu_binding;
+
 // 80 bytes
 #[repr(C, align(4))]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
@@ -21,11 +25,21 @@ struct ContreeInner {
     children: [u32; 64],
 }
 
+#[repr(C, align(16))]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Material {
+    color: [f32; 4],
+    reflectivity: f32,
+    padding: [u8; 12],
+}
+
 type ChildIndex = usize;
+
+/// Address in terms of data type, not bytes
 type Addr = u32;
 
 #[derive(Debug, Clone, Default)]
-struct Contree {
+pub struct Contree {
     center_offset: Vec3,
     root: Addr,
     /// Distance from center to face
@@ -34,6 +48,7 @@ struct Contree {
     leaves: Vec<ContreeLeaf>,
     inner_tombstones: Vec<Addr>,
     leaf_tombstones: Vec<Addr>,
+    gpu: GPUBinding,
 }
 
 fn morton_code(norm_p: UVec3) -> u64 {
@@ -56,7 +71,7 @@ fn morton_code(norm_p: UVec3) -> u64 {
     (interleave(norm_p.x) << 2) | (interleave(norm_p.y) << 1) | interleave(norm_p.z)
 }
 
-struct FindResult {
+pub struct FindResult {
     leaf_address: Option<Addr>,
     traversal_stack: Vec<ChildIndex>,
     parent_addrs: Vec<Addr>,
@@ -88,25 +103,6 @@ impl Contree {
             light: 0,
             children: [0; 64],
         };
-        match self.inner_tombstones.pop() {
-            Some(addr) => {
-                self.inners[addr as usize] = new_node;
-                addr
-            }
-            None => {
-                self.inners.push(new_node);
-                (self.inners.len() - 1) as Addr
-            }
-        }
-    }
-
-    fn new_inner_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
-        let new_node = ContreeInner {
-            contains: 0,
-            leaf: 0,
-            light: 0,
-            children: [0; 64],
-        };
         let addr = match self.inner_tombstones.pop() {
             Some(addr) => {
                 self.inners[addr as usize] = new_node;
@@ -117,12 +113,18 @@ impl Contree {
                 (self.inners.len() - 1) as Addr
             }
         };
+        self.gpu.write_inner(addr, &[new_node]);
+        addr
+    }
+
+    pub fn new_inner_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
+        let addr = self.new_root_node();
         self.inners[parent as usize].children[index] = addr;
         self.update_parent_bitflags(parent, index, true, false, false);
         addr
     }
 
-    fn new_leaf_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
+    pub fn new_leaf_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
         let new_node = ContreeLeaf {
             contains: 0,
             light: 0,
@@ -140,6 +142,8 @@ impl Contree {
         };
         self.inners[parent as usize].children[index] = addr;
         self.update_parent_bitflags(parent, index, true, true, false);
+
+        self.gpu.write_leaf(addr, &[new_node]);
         addr
     }
 
@@ -160,9 +164,11 @@ impl Contree {
         parent_node.leaf |= (leaf as u64) << child;
         parent_node.light &= !mask;
         parent_node.light |= (light as u64) << child;
+
+        self.gpu.write_inner(parent, &[*parent_node]);
     }
 
-    fn insert(&mut self, pos: Vec3, material: u8) -> Vec<Addr> {
+    pub fn insert(&mut self, pos: Vec3, material: u8) -> Vec<Addr> {
         // Grow upward until the position is in bounds
         while !self.in_bounds(pos) {
             let new_root = self.new_root_node();
@@ -170,6 +176,9 @@ impl Contree {
             self.inners[new_root as usize].children[self_index] = self.root;
             self.root = new_root;
             self.size *= 8;
+
+            self.gpu
+                .write_inner(new_root, &[self.inners[new_root as usize]]);
             todo!()
         }
 
@@ -179,15 +188,16 @@ impl Contree {
             mut parent_addrs,
         } = self.find(pos, &[]);
         match leaf_address {
-            Some(addr) => {
+            Some(leaf_addr) => {
                 let leaf = self
                     .leaves
-                    .get_mut(addr as usize)
+                    .get_mut(leaf_addr as usize)
                     .expect("Leaf node does not exist!");
 
                 let child_index = *traversal_stack.last().unwrap();
                 leaf.children[child_index] = material;
                 leaf.contains |= 1 << child_index;
+                self.gpu.write_leaf(leaf_addr, &[*leaf]);
             }
             None => {
                 let (leaf_addr, child_index) =
@@ -200,6 +210,7 @@ impl Contree {
 
                 leaf.children[child_index] = material;
                 leaf.contains |= 1 << child_index;
+                self.gpu.write_leaf(leaf_addr, &[*leaf]);
             }
         }
         parent_addrs
@@ -236,7 +247,7 @@ impl Contree {
         digits
     }
 
-    fn find(&self, pos: Vec3, given_parent_addrs: &[Addr]) -> FindResult {
+    pub fn find(&self, pos: Vec3, given_parent_addrs: &[Addr]) -> FindResult {
         let code = morton_code(self.normalize(pos));
         let mut traversal_stack = Self::to_base_64(code);
 

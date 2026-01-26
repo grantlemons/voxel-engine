@@ -1,43 +1,8 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use glam::{Mat4, Vec3, Vec4Swizzles, vec4};
-use wgpu::util::DeviceExt;
 
-pub static VOXELS: LazyLock<[Voxel; 3]> = LazyLock::new(|| {
-    [
-        Voxel {
-            position: [0., 0., 2.],
-            color: [1., 1., 1.],
-            ..Default::default()
-        },
-        Voxel {
-            position: [1., 0., 3.],
-            color: [1., 1., 1.],
-            ..Default::default()
-        },
-        Voxel {
-            position: [0., 1., 3.],
-            color: [1., 1., 1.],
-            ..Default::default()
-        },
-    ]
-});
-
-pub static LIGHTS: LazyLock<[Voxel; 2]> = LazyLock::new(|| {
-    [
-        Voxel {
-            position: [2., 3., 0.],
-            color: [255. / 255., 237. / 255., 222. / 255.],
-            ..Default::default()
-        },
-        Voxel {
-            position: [2., -3., 3.],
-            color: [255. / 255., 237. / 255., 222. / 255.],
-            ..Default::default()
-        },
-    ]
-});
-
+#[derive(Debug)]
 pub struct BufferWriteCommand {
     pub target_buffer: wgpu::Buffer,
     pub offset: u64,
@@ -55,6 +20,7 @@ pub struct Camera {
     _padding_2: u32,
 }
 
+// 32 bytes
 #[repr(C, align(16))]
 #[derive(Debug, Default, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Voxel {
@@ -186,16 +152,20 @@ impl State {
             ],
         });
 
-        let voxels = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let voxels = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Voxel List"),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            contents: bytemuck::bytes_of(&*VOXELS),
+            size: dbg!(
+                device.limits().max_storage_buffer_binding_size as u64 / 16_u64.strict_pow(3)
+            ),
+            mapped_at_creation: false,
         });
 
-        let lights = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let lights = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Light List"),
-            usage: wgpu::BufferUsages::STORAGE,
-            contents: bytemuck::bytes_of(&*LIGHTS),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            size: device.limits().max_storage_buffer_binding_size as u64 / 16_u64.strict_pow(3),
+            mapped_at_creation: false,
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -344,7 +314,7 @@ impl Renderer {
                     label: Some("Render Encoder"),
                 });
 
-        let mut belt = wgpu::util::StagingBelt::new(100);
+        let mut belt = wgpu::util::StagingBelt::new(1024);
         for command in self.buffer_reader.try_iter() {
             let mut view = belt.write_buffer(
                 &mut encoder,
