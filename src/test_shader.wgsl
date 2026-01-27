@@ -5,6 +5,12 @@ struct Camera {
     fov: f32,
 };
 
+struct ContreeData {
+    size: u32,
+    root_addr: u32,
+    center_offset: vec3u,
+};
+
 struct Voxel {
     position: vec3f,
     color: vec3f,
@@ -13,6 +19,7 @@ struct Voxel {
 @group(0) @binding(0) var<storage, read> voxels: array<Voxel>;
 @group(0) @binding(1) var<storage, read> lights: array<Voxel>;
 var<push_constant> camera: Camera;
+var<push_constant> contree: ContreeData;
 
 @vertex
 fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {

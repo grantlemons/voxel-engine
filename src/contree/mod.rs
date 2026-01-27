@@ -40,10 +40,10 @@ type Addr = u32;
 
 #[derive(Debug, Clone, Default)]
 pub struct Contree {
-    center_offset: Vec3,
-    root: Addr,
+    pub center_offset: Vec3,
+    pub root: Addr,
     /// Distance from center to face
-    size: u32,
+    pub size: u32,
     inners: Vec<ContreeInner>,
     leaves: Vec<ContreeLeaf>,
     inner_tombstones: Vec<Addr>,
@@ -71,7 +71,7 @@ fn morton_code(norm_p: UVec3) -> u64 {
     (interleave(norm_p.x) << 2) | (interleave(norm_p.y) << 1) | interleave(norm_p.z)
 }
 
-pub struct FindResult {
+struct FindResult {
     leaf_address: Option<Addr>,
     traversal_stack: Vec<ChildIndex>,
     parent_addrs: Vec<Addr>,
@@ -117,14 +117,14 @@ impl Contree {
         addr
     }
 
-    pub fn new_inner_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
+    fn new_inner_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
         let addr = self.new_root_node();
         self.inners[parent as usize].children[index] = addr;
         self.update_parent_bitflags(parent, index, true, false, false);
         addr
     }
 
-    pub fn new_leaf_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
+    fn new_leaf_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
         let new_node = ContreeLeaf {
             contains: 0,
             light: 0,
@@ -247,7 +247,7 @@ impl Contree {
         digits
     }
 
-    pub fn find(&self, pos: Vec3, given_parent_addrs: &[Addr]) -> FindResult {
+    fn find(&self, pos: Vec3, given_parent_addrs: &[Addr]) -> FindResult {
         let code = morton_code(self.normalize(pos));
         let mut traversal_stack = Self::to_base_64(code);
 

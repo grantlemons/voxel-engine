@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use glam::{Mat4, Vec3, Vec4Swizzles, vec4};
 
+use crate::contree::Contree;
+
 #[derive(Debug)]
 pub struct BufferWriteCommand {
     pub target_buffer: wgpu::Buffer,
@@ -18,6 +20,15 @@ pub struct Camera {
     pub size: [u32; 2],
     pub fov: f32,
     _padding_2: u32,
+}
+
+#[repr(C, align(16))]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct ContreeData {
+    size: u32,
+    root_addr: u32,
+    center_offset: [f32; 3],
+    _padding: [u32; 3],
 }
 
 // 32 bytes
@@ -48,6 +59,7 @@ pub struct Renderer {
     state: State,
     pub window: Arc<winit::window::Window>,
     pub camera: Camera,
+    pub contree: Contree,
     pub buffers: Arc<Buffers>,
     pub buffer_writer: flume::Sender<BufferWriteCommand>,
     buffer_reader: flume::Receiver<BufferWriteCommand>,
@@ -74,7 +86,7 @@ pub struct State {
 
 impl State {
     pub async fn new(window: Arc<winit::window::Window>) -> anyhow::Result<Self> {
-        let num_push_vectors = std::mem::size_of::<[Camera; 1]>() as u32;
+        let num_push_vectors = size_of::<Camera>() as u32 + size_of::<ContreeData>() as u32;
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -247,6 +259,7 @@ impl Renderer {
             buffers: state.buffers.clone(),
             state,
             camera: Default::default(),
+            contree: Default::default(),
             buffer_writer,
             buffer_reader,
         })
@@ -292,6 +305,16 @@ impl Renderer {
             wgpu::ShaderStages::FRAGMENT,
             0,
             bytemuck::bytes_of(&self.camera),
+        );
+        render_pass.set_push_constants(
+            wgpu::ShaderStages::FRAGMENT,
+            size_of::<Camera>() as u32,
+            bytemuck::bytes_of(&ContreeData {
+                size: self.contree.size,
+                root_addr: self.contree.root,
+                center_offset: self.contree.center_offset.to_array(),
+                _padding: [0; 3],
+            }),
         );
         render_pass.set_bind_group(0, &self.state.bind_group, &[]);
         render_pass.draw(0..3, 0..1);
