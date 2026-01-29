@@ -1,4 +1,6 @@
 #![allow(unused)]
+use std::fmt::Display;
+
 use bytemuck::{Pod, Zeroable};
 use glam::{IVec3, UVec3, Vec3};
 
@@ -38,17 +40,34 @@ type ChildIndex = usize;
 /// Address in terms of data type, not bytes
 type Addr = u32;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Contree {
     pub center_offset: Vec3,
     pub root: Addr,
-    /// Distance from center to face
+    /// Distance from face to face
     pub size: u32,
     inners: Vec<ContreeInner>,
     leaves: Vec<ContreeLeaf>,
     inner_tombstones: Vec<Addr>,
     leaf_tombstones: Vec<Addr>,
     gpu: GPUBinding,
+}
+
+impl Default for Contree {
+    fn default() -> Self {
+        let mut new = Self {
+            center_offset: Default::default(),
+            root: Default::default(),
+            size: 16,
+            inners: Default::default(),
+            leaves: Default::default(),
+            inner_tombstones: Default::default(),
+            leaf_tombstones: Default::default(),
+            gpu: Default::default(),
+        };
+        new.new_root_node();
+        new
+    }
 }
 
 fn morton_code(norm_p: UVec3) -> u64 {
@@ -71,16 +90,19 @@ fn morton_code(norm_p: UVec3) -> u64 {
     (interleave(norm_p.x) << 2) | (interleave(norm_p.y) << 1) | interleave(norm_p.z)
 }
 
+#[derive(Debug)]
 struct FindResult {
     leaf_address: Option<Addr>,
     traversal_stack: Vec<ChildIndex>,
     parent_addrs: Vec<Addr>,
+    /// Distance from face to face
+    node_size: u32,
 }
 
 impl Contree {
     fn normalize(&self, p: Vec3) -> UVec3 {
-        (p - self.center_offset + Vec3::splat(self.size as f32))
-            .round()
+        (p - self.center_offset + (self.size as f32 / 2.) + 0.5)
+            .trunc()
             .as_uvec3()
     }
 
@@ -89,11 +111,12 @@ impl Contree {
     }
 
     fn in_bounds(&self, p: Vec3) -> bool {
-        ((p - self.center_offset)
+        (p - self.center_offset)
             .map(Self::svo_abs)
             .round()
-            .max_element() as u32)
-            < self.size
+            .as_uvec3()
+            .max_element()
+            < self.size / 2
     }
 
     fn new_root_node(&mut self) -> Addr {
@@ -175,7 +198,7 @@ impl Contree {
             let self_index = 0;
             self.inners[new_root as usize].children[self_index] = self.root;
             self.root = new_root;
-            self.size *= 8;
+            self.size *= 4;
 
             self.gpu
                 .write_inner(new_root, &[self.inners[new_root as usize]]);
@@ -186,6 +209,7 @@ impl Contree {
             leaf_address,
             mut traversal_stack,
             mut parent_addrs,
+            ..
         } = self.find(pos, &[]);
         match leaf_address {
             Some(leaf_addr) => {
@@ -256,14 +280,6 @@ impl Contree {
         }
 
         let mut parent_addrs = given_parent_addrs.to_vec();
-        if self.inners.is_empty() {
-            return FindResult {
-                leaf_address: None,
-                traversal_stack,
-                parent_addrs,
-            };
-        }
-
         parent_addrs.push(self.root);
         let mut current = self.inners[self.root as usize];
         for i in 0..(traversal_stack.len()) {
@@ -278,10 +294,10 @@ impl Contree {
                 return FindResult {
                     leaf_address: Some(child_addr),
                     traversal_stack,
+                    node_size: self.size / 4_u32.pow(parent_addrs.len() as u32 + 1),
                     parent_addrs,
                 };
-            }
-            if child_exists {
+            } else if child_exists {
                 traversal_stack.pop();
                 parent_addrs.push(child_addr);
                 current = self.inners[child_addr as usize];
@@ -289,16 +305,39 @@ impl Contree {
                 return FindResult {
                     leaf_address: None,
                     traversal_stack,
+                    node_size: self.size / 4_u32.pow(parent_addrs.len() as u32 - 1),
                     parent_addrs,
                 };
             }
         }
 
-        FindResult {
-            leaf_address: None,
-            traversal_stack,
-            parent_addrs,
+        unreachable!()
+    }
+
+    pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Vec3 {
+        let mut p = pos;
+        let mut i = 0;
+        while self.in_bounds(p) && i < 50 {
+            dbg!(p);
+            let FindResult {
+                node_size,
+                parent_addrs,
+                ..
+            } = self.find(p, &[]);
+
+            let norm_dir = dir; // .normalize_or_zero();
+            let dir_signs = norm_dir.signum();
+
+            let boundary = node_size as f32
+                * ((p + 0.5 + (node_size as f32 * norm_dir) / 2.) / node_size as f32).round()
+                - 0.5;
+
+            let max_t = (boundary - p) / norm_dir;
+            p += max_t.min_element() * norm_dir;
+            i += 1;
         }
+
+        todo!()
     }
 }
 
@@ -330,11 +369,13 @@ mod tests {
             leaf_address,
             traversal_stack,
             parent_addrs,
+            node_size,
         } = contree.find(p, &[]);
 
         assert!(leaf_address.is_none());
-        assert_eq!(traversal_stack, &[5, 28]);
-        assert!(parent_addrs.is_empty());
+        assert_eq!(traversal_stack, &[5, 36, 3]);
+        assert_eq!(parent_addrs.as_slice(), &[0]);
+        assert_eq!(node_size, 16);
     }
 
     #[test]
@@ -347,7 +388,7 @@ mod tests {
         leaf_children[0] = 10;
         let contree = Contree {
             root: 0,
-            size: 8,
+            size: 16,
             inners: vec![ContreeInner {
                 contains: 1 << 56,
                 leaf: 1 << 56,
@@ -366,11 +407,13 @@ mod tests {
             leaf_address,
             traversal_stack,
             parent_addrs,
+            node_size,
         } = contree.find(p, &[]);
 
         assert_eq!(leaf_address, Some(0));
         assert_eq!(traversal_stack.as_slice(), &[0]);
         assert_eq!(parent_addrs.as_slice(), &[0]);
+        assert_eq!(node_size, 1);
     }
 
     #[test]
@@ -378,7 +421,7 @@ mod tests {
         let p = Vec3::new(0., 0., 0.);
         let mut contree = Contree {
             root: 0,
-            size: 16,
+            size: 64,
             inners: vec![ContreeInner {
                 contains: 0,
                 leaf: 0,
@@ -389,15 +432,89 @@ mod tests {
             ..Default::default()
         };
         contree.insert(p, 10);
+        contree.insert(Vec3::new(4., 4., 4.), 5);
 
         let FindResult {
             leaf_address,
             traversal_stack,
             parent_addrs,
+            node_size,
         } = contree.find(p, &[]);
+
+        contree.raycast(Vec3::new(0., 0., 0.), -Vec3::splat(1.));
 
         assert_eq!(leaf_address, Some(0));
         assert_eq!(traversal_stack.as_slice(), &[0]);
         assert_eq!(parent_addrs.as_slice(), &[0, 1]);
+        assert_eq!(node_size, 1);
+    }
+
+    #[test]
+    fn insert_many_no_grow() {
+        let p = Vec3::new(0., 0., 0.);
+        let mut contree = Contree {
+            root: 0,
+            size: 4_u32.pow(3),
+            inners: vec![ContreeInner {
+                contains: 0,
+                leaf: 0,
+                light: 0,
+                children: [0; 64],
+            }],
+            leaves: Vec::new(),
+            ..Default::default()
+        };
+        contree.insert(p, 10);
+        contree.insert(Vec3::new(0., 0., 1.), 1);
+        contree.insert(Vec3::new(0., 1., 0.), 2);
+        contree.insert(Vec3::new(1., 0., 0.), 3);
+        contree.insert(Vec3::new(-10., 10., 10.), 4);
+        contree.insert(Vec3::new(-10., 0., 0.), 5);
+        contree.insert(Vec3::new(-10., -10., 0.), 6);
+    }
+}
+
+impl Display for Contree {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "digraph {{
+\tnewrank=true;
+\trankdir=LR;"
+        );
+
+        let mut stack = vec![self.root];
+
+        while !stack.is_empty() {
+            let addr = stack.pop().unwrap();
+            let cur = self.inners[addr as usize];
+            for i in 0..64 {
+                if (cur.contains & (0b1 << i)) != 0 {
+                    if (cur.leaf & (0b1 << i)) != 0 {
+                        writeln!(
+                            f,
+                            "\t{} -> \"leaf {}\" [label=<{}>]",
+                            addr, cur.children[i], i
+                        );
+
+                        let leaf_addr = cur.children[i];
+                        for j in 0..64 {
+                            if (self.leaves[leaf_addr as usize].contains & (0b1 << j)) != 0 {
+                                writeln!(
+                                    f,
+                                    "\t\"leaf {}\" -> \"mat {}\" [label=<{}>]",
+                                    leaf_addr, self.leaves[leaf_addr as usize].children[j], j
+                                );
+                            }
+                        }
+                    } else {
+                        writeln!(f, "\t{} -> {} [label=<{}>]", addr, cur.children[i], i);
+                        stack.push(cur.children[i]);
+                    }
+                }
+            }
+        }
+
+        writeln!(f, "}}")
     }
 }

@@ -11,21 +11,22 @@ struct ContreeInner {
     children: array<u32, 64>,
 }
 
+struct ContreeData {
+    size: u32,
+    root_addr: u32,
+    center_offset: vec3f,
+};
+
 struct Material {
     color: vec4f,
     reflectivity: f32,
 }
 
-var<push_constant> contree_root: u32;
-var<push_constant> contree_center: f32;
-var<push_constant> contree_size: u32;
 @group(0) @binding(0) var<storage, read> inners: array<ContreeInner>;
 @group(0) @binding(1) var<storage, read> leaves: array<ContreeLeaf>;
 @group(0) @binding(2) var<storage, read> materials: array<Material>;
 
-@compute @workgroup_size(1)
-fn cs_main(@builtin(global_invocation_id) id: vec3u) {
-}
+var<push_constant> contree: ContreeData;
 
 // raycast to each light source nearby, return an rgb value representing the sum
 // of the light brightnesses and colors
@@ -46,7 +47,7 @@ fn raycast(p: vec3f, dir: vec3f, bounces: u32) -> vec3f {
 // convert from a signed coordinate in the range of the contree to an unsigned
 // contree-coordinate
 fn normalize_coord(p: vec3i) -> vec3u {
-    return vec3u(p + i32(contree_size));
+    return vec3u(p - vec3i(round(contree.center_offset)) + vec3i(contree.size));
 }
 
 // interleave a 32bit number with zero to get a 64 bit number

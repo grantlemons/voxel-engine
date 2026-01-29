@@ -8,7 +8,7 @@ struct Camera {
 struct ContreeData {
     size: u32,
     root_addr: u32,
-    center_offset: vec3u,
+    center_offset: vec3f,
 };
 
 struct Voxel {
