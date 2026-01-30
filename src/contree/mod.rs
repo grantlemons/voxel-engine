@@ -101,8 +101,8 @@ struct FindResult {
 
 impl Contree {
     fn normalize(&self, p: Vec3) -> UVec3 {
-        (p - self.center_offset + (self.size as f32 / 2.) + 0.5)
-            .trunc()
+        (p - self.center_offset + (self.size as f32 / 2.))
+            .round()
             .as_uvec3()
     }
 
@@ -316,28 +316,33 @@ impl Contree {
 
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Vec3 {
         let mut p = pos;
+        let mut find_p = pos;
         let mut i = 0;
-        while self.in_bounds(p) && i < 50 {
-            dbg!(p);
+        while self.in_bounds(p) && i < 500 {
             let FindResult {
                 node_size,
                 parent_addrs,
                 ..
-            } = self.find(p, &[]);
+            } = self.find(find_p, &[]);
 
-            let norm_dir = dir; // .normalize_or_zero();
-            let dir_signs = norm_dir.signum();
+            let norm_dir = dir.normalize();
+            let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
 
-            let boundary = node_size as f32
-                * ((p + 0.5 + (node_size as f32 * norm_dir) / 2.) / node_size as f32).round()
-                - 0.5;
+            // round to integers in "boundary space"
+            let bspace_p = p + 0.5 + (self.size as f32 / 2.);
+            let boundary = node_size as f32 * (bspace_p / node_size as f32 + dir_sign / 2.).round();
+            let pspace_boundary = boundary - 0.5 - (self.size as f32 / 2.);
 
-            let max_t = (boundary - p) / norm_dir;
-            p += max_t.min_element() * norm_dir;
+            // Maximum t before hitting boundary on each axis
+            let max_t = (pspace_boundary - p) / norm_dir;
+
+            p += max_t.abs().min_element() * norm_dir; // jump to boundary
+            p = (p * 2.).round() / 2.; // snap to boundary
+
+            find_p = p + (dir_sign * 0.001);
             i += 1;
         }
-
-        todo!()
+        p
     }
 }
 
@@ -420,19 +425,16 @@ mod tests {
     fn insert_traverse_tiny() {
         let p = Vec3::new(0., 0., 0.);
         let mut contree = Contree {
-            root: 0,
             size: 64,
-            inners: vec![ContreeInner {
-                contains: 0,
-                leaf: 0,
-                light: 0,
-                children: [0; 64],
-            }],
-            leaves: Vec::new(),
             ..Default::default()
         };
         contree.insert(p, 10);
-        contree.insert(Vec3::new(4., 4., 4.), 5);
+
+        assert_eq!(contree.find(Vec3::splat(-1.), &[]).parent_addrs, &[0]);
+        assert_eq!(
+            contree.find(Vec3::new(15.5001, 0., 0.), &[]).parent_addrs,
+            &[0]
+        );
 
         let FindResult {
             leaf_address,
@@ -441,7 +443,18 @@ mod tests {
             node_size,
         } = contree.find(p, &[]);
 
-        contree.raycast(Vec3::new(0., 0., 0.), -Vec3::splat(1.));
+        assert_eq!(
+            contree.raycast(Vec3::new(0., 0., 0.), Vec3::new(1., 1., 1.)),
+            Vec3::splat(31.5)
+        );
+        assert_eq!(
+            contree.raycast(Vec3::new(0., 0., 0.), -Vec3::new(1., 1., 1.)),
+            Vec3::splat(-32.5)
+        );
+        assert_eq!(
+            contree.raycast(Vec3::new(-100., 0., 0.), -Vec3::new(1., 0., 0.)),
+            Vec3::new(31.5, 0., 0.)
+        );
 
         assert_eq!(leaf_address, Some(0));
         assert_eq!(traversal_stack.as_slice(), &[0]);
