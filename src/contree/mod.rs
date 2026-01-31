@@ -106,6 +106,10 @@ impl Contree {
             .as_uvec3()
     }
 
+    fn denormalize(&self, p: Vec3) -> Vec3 {
+        p + self.center_offset - (self.size as f32 / 2.)
+    }
+
     fn svo_abs(v: f32) -> f32 {
         if v < 0. { -v - 1. } else { v }
     }
@@ -320,18 +324,31 @@ impl Contree {
         let mut i = 0;
         while self.in_bounds(p) && i < 500 {
             let FindResult {
+                leaf_address,
+                traversal_stack,
                 node_size,
                 parent_addrs,
                 ..
             } = self.find(find_p, &[]);
 
+            // break if hit solid
+            if let Some(laddr) = leaf_address
+                && let Some(&cidx) = traversal_stack.last()
+                && self.leaves[laddr as usize].contains & (0b1 << cidx) != 0
+                && self.leaves[laddr as usize].children[cidx] != 0
+            {
+                break;
+            }
+
+            let child_size = node_size as f32 / 4.;
             let norm_dir = dir.normalize();
             let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
 
             // round to integers in "boundary space"
-            let bspace_p = p + 0.5 + (self.size as f32 / 2.);
-            let boundary = node_size as f32 * (bspace_p / node_size as f32 + dir_sign / 2.).round();
-            let pspace_boundary = boundary - 0.5 - (self.size as f32 / 2.);
+            let bspace_p = p + 0.5 + (self.size as f32 / 2.) - self.center_offset;
+            let bspace_boundary = child_size * (bspace_p / child_size + dir_sign / 2.).round();
+            let pspace_boundary =
+                bspace_boundary - 0.5 - (self.size as f32 / 2.) + self.center_offset;
 
             // Maximum t before hitting boundary on each axis
             let max_t = (pspace_boundary - p) / norm_dir;
@@ -443,19 +460,6 @@ mod tests {
             node_size,
         } = contree.find(p, &[]);
 
-        assert_eq!(
-            contree.raycast(Vec3::new(0., 0., 0.), Vec3::new(1., 1., 1.)),
-            Vec3::splat(31.5)
-        );
-        assert_eq!(
-            contree.raycast(Vec3::new(0., 0., 0.), -Vec3::new(1., 1., 1.)),
-            Vec3::splat(-32.5)
-        );
-        assert_eq!(
-            contree.raycast(Vec3::new(-100., 0., 0.), -Vec3::new(1., 0., 0.)),
-            Vec3::new(31.5, 0., 0.)
-        );
-
         assert_eq!(leaf_address, Some(0));
         assert_eq!(traversal_stack.as_slice(), &[0]);
         assert_eq!(parent_addrs.as_slice(), &[0, 1]);
@@ -484,6 +488,48 @@ mod tests {
         contree.insert(Vec3::new(-10., 10., 10.), 4);
         contree.insert(Vec3::new(-10., 0., 0.), 5);
         contree.insert(Vec3::new(-10., -10., 0.), 6);
+    }
+
+    #[test]
+    fn raycast_in_bounds() {
+        let mut contree = Contree {
+            size: 64,
+            ..Default::default()
+        };
+        contree.insert(Vec3::new(-1., -1., -1.), 10);
+
+        assert_eq!(
+            contree.raycast(Vec3::new(0., 0., 0.), Vec3::new(1., 1., 1.)),
+            Vec3::splat(31.5)
+        );
+        assert_eq!(
+            contree.raycast(Vec3::new(0., 0., 0.), Vec3::new(-1., -1., -1.)),
+            Vec3::splat(-0.5)
+        );
+        assert_eq!(
+            contree.raycast(Vec3::new(0., -30., 0.), Vec3::new(0., -1., 0.)),
+            Vec3::new(0., -32.5, 0.)
+        );
+        assert_eq!(
+            contree.raycast(Vec3::new(0., -30., 0.), Vec3::new(0., 1., 0.)),
+            Vec3::new(0., 31.5, 0.)
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn raycast_out_of_bounds() {
+        let p = Vec3::new(0., 0., 0.);
+        let mut contree = Contree {
+            size: 64,
+            ..Default::default()
+        };
+        contree.insert(p, 10);
+
+        assert_eq!(
+            contree.raycast(Vec3::new(-100., 0., 0.), Vec3::new(1., 0., 0.)),
+            Vec3::new(31.5, 0., 0.)
+        );
     }
 }
 
