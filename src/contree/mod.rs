@@ -320,9 +320,13 @@ impl Contree {
 
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Vec3 {
         let mut p = pos;
-        let mut find_p = pos;
+        let mut find_p = p;
         let mut i = 0;
-        while self.in_bounds(p) && i < 500 {
+        let correct_direction = |p: Vec3, dir: Vec3| {
+            (p + (dir.normalize() / 4.) - self.center_offset).length_squared()
+                <= (p - self.center_offset).length_squared()
+        };
+        while (self.in_bounds(p) || correct_direction(p, dir)) && i < 10 {
             let FindResult {
                 leaf_address,
                 traversal_stack,
@@ -345,15 +349,21 @@ impl Contree {
             let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
 
             // round to integers in "boundary space"
-            let bspace_p = p + 0.5 + (self.size as f32 / 2.) - self.center_offset;
+            let approx_bbox =
+                self.size as f32 * ((p - self.center_offset) / self.size as f32).abs().ceil();
+
+            let bspace_p = p + 0.5 + approx_bbox - self.center_offset;
             let bspace_boundary = child_size * (bspace_p / child_size + dir_sign / 2.).round();
-            let pspace_boundary =
-                bspace_boundary - 0.5 - (self.size as f32 / 2.) + self.center_offset;
+            let pspace_boundary = bspace_boundary - 0.5 - approx_bbox + self.center_offset;
+            dbg!(pspace_boundary, child_size);
 
             // Maximum t before hitting boundary on each axis
             let max_t = (pspace_boundary - p) / norm_dir;
 
-            p += max_t.abs().min_element() * norm_dir; // jump to boundary
+            // Minimum element of max_t, ignoring inf, -inf, and NaN values
+            let move_distance = max_t.abs().to_array().into_iter().reduce(f32::min).unwrap();
+
+            p += move_distance * norm_dir; // jump to boundary
             p = (p * 2.).round() / 2.; // snap to boundary
 
             find_p = p + (dir_sign * 0.001);
@@ -507,6 +517,10 @@ mod tests {
             Vec3::splat(-0.5)
         );
         assert_eq!(
+            contree.raycast(Vec3::new(35., 35., 35.), Vec3::new(-1., -1., -1.)),
+            Vec3::splat(-0.5)
+        );
+        assert_eq!(
             contree.raycast(Vec3::new(0., -30., 0.), Vec3::new(0., -1., 0.)),
             Vec3::new(0., -32.5, 0.)
         );
@@ -517,7 +531,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn raycast_out_of_bounds() {
         let p = Vec3::new(0., 0., 0.);
         let mut contree = Contree {
@@ -526,9 +539,32 @@ mod tests {
         };
         contree.insert(p, 10);
 
+        // assert_eq!(
+        //     contree.raycast(Vec3::new(-100., 0., 0.), Vec3::new(1., 0., 0.)),
+        //     Vec3::new(-0.5, 0., 0.)
+        // );
+        // assert_eq!(
+        //     contree.raycast(Vec3::new(-100., -50., 0.), Vec3::new(2., 1., 0.)),
+        //     Vec3::new(-0.5, -0.5, 0.)
+        // );
         assert_eq!(
-            contree.raycast(Vec3::new(-100., 0., 0.), Vec3::new(1., 0., 0.)),
-            Vec3::new(31.5, 0., 0.)
+            contree.raycast(Vec3::new(100., 50., 0.), Vec3::new(-2., -1., 0.)),
+            Vec3::new(0.5, 0.5, 0.)
+        );
+    }
+
+    #[test]
+    fn raycast_out_of_bounds_wrong_dir() {
+        let p = Vec3::new(0., 0., 0.);
+        let mut contree = Contree {
+            size: 64,
+            ..Default::default()
+        };
+        contree.insert(p, 10);
+
+        assert_eq!(
+            contree.raycast(Vec3::new(-100., 0., 0.), Vec3::new(-1., 0., 0.)),
+            Vec3::new(-100., 0., 0.)
         );
     }
 }
