@@ -94,9 +94,8 @@ impl ApplicationHandler for App {
     }
 
     fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
-        let renderer = match &mut self.renderer {
-            Some(s) => s,
-            None => return,
+        let Some(renderer) = &mut self.renderer else {
+            return;
         };
         match event {
             DeviceEvent::MouseMotion { delta: (x, y) } => {
@@ -109,10 +108,10 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let renderer = match &mut self.renderer {
-            Some(s) => s,
-            None => return,
+        let Some(renderer) = &mut self.renderer else {
+            return;
         };
+
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
@@ -170,7 +169,7 @@ impl ApplicationHandler for App {
                     renderer.resize(size.width, size.height);
                 }
                 Err(e) => {
-                    println!("Unable to render {}", e);
+                    println!("Unable to render {e}");
                 }
             },
             WindowEvent::KeyboardInput {

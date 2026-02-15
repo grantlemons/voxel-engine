@@ -580,8 +580,7 @@ impl Display for Contree {
 
         let mut stack = vec![self.root];
 
-        while !stack.is_empty() {
-            let addr = stack.pop().unwrap();
+        while let Some(addr) = stack.pop() {
             let cur = self.inners[addr as usize];
             for i in 0..64 {
                 if (cur.contains & (0b1 << i)) != 0 {
