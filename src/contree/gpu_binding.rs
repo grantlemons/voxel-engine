@@ -18,8 +18,8 @@ pub enum GPUBinding {
 
 impl GPUBinding {
     pub fn write_inner(&self, addr: Addr, data: &[ContreeInner]) {
-        #[allow(clippy::single_match)]
         match self {
+            GPUBinding::Dummy => {}
             GPUBinding::Channel {
                 writer,
                 inner_buffer,
@@ -36,8 +36,8 @@ impl GPUBinding {
     }
 
     pub fn write_leaf(&self, addr: Addr, data: &[ContreeLeaf]) {
-        #[allow(clippy::single_match)]
         match self {
+            GPUBinding::Dummy => {}
             GPUBinding::Channel {
                 writer,
                 inner_buffer,
