@@ -337,6 +337,23 @@ impl Contree {
         )
     }
 
+    // When moving in a node, unless you know it has no children, you can only move 1/4 at a time
+    fn max_travel_distance(
+        &self,
+        leaf_address: Option<Addr>,
+        parent_addrs: &[Addr],
+        node_size: f32,
+    ) -> f32 {
+        if leaf_address.is_none()
+            && let Some(&parent_addr) = parent_addrs.last()
+            && self.inners[parent_addr as usize].contains == 0
+        {
+            node_size
+        } else {
+            node_size / 4.
+        }
+    }
+
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Vec3 {
         let mut p = pos;
         let mut find_p = p;
@@ -360,7 +377,8 @@ impl Contree {
                 break;
             }
 
-            let child_size = node_size as f32 / 4.;
+            let child_size =
+                self.max_travel_distance(leaf_address, &parent_addrs, node_size as f32);
             let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
 
             let bspace_p = p + 0.5 - self.center_offset;
@@ -567,6 +585,18 @@ mod tests {
         };
         let p = Vec3::splat(0.);
         contree.insert(p, 10);
+        dbg!(&contree);
+
+        let FindResult {
+            leaf_address,
+            traversal_stack,
+            parent_addrs,
+            node_size,
+        } = contree.find(Vec3::new(3.5, 0., 0.), &[]);
+
+        dbg!(contree.max_travel_distance(leaf_address, &parent_addrs, node_size as f32));
+        dbg!(leaf_address, &traversal_stack, &parent_addrs, node_size);
+        assert!(false);
 
         assert_eq!(
             contree.raycast(Vec3::new(-100., 0., 0.), Vec3::new(1., 0., 0.)),
