@@ -351,14 +351,12 @@ impl Contree {
                 ..
             } = self.find(find_p, &[]);
 
-            dbg!(find_p, parent_addrs);
             // break if hit solid
             if let Some(laddr) = leaf_address
                 && let Some(&cidx) = traversal_stack.last()
                 && self.leaves[laddr as usize].contains & (0b1 << cidx) != 0
                 && self.leaves[laddr as usize].children[cidx] != 0
             {
-                dbg!("Hit!", self.leaves[laddr as usize].children[cidx]);
                 break;
             }
 
@@ -369,7 +367,6 @@ impl Contree {
             let bspace_boundary =
                 child_size * Self::dir_round(bspace_p / child_size + dir_sign / 2., dir);
             let pspace_boundary = bspace_boundary - 0.5 + self.center_offset;
-            dbg!(child_size, pspace_boundary);
 
             // Maximum t before hitting boundary on each axis
             let norm_dir = dir.normalize();
@@ -383,7 +380,6 @@ impl Contree {
             find_p = p + (dir_sign * 0.001);
             i += 1;
         }
-        dbg!("Done!");
         p
     }
 }
