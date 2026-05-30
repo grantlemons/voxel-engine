@@ -120,7 +120,7 @@ impl Contree {
             .round()
             .as_uvec3()
             .max_element()
-            < self.size / 2
+            <= self.size / 2
     }
 
     fn new_root_node(&mut self) -> Addr {
@@ -332,10 +332,6 @@ impl Contree {
         unreachable!()
     }
 
-    fn correct_direction(&self, p: Vec3, dir: Vec3) -> bool {
-        (p + (dir.normalize() / 4.) - self.center_offset).length_squared()
-            <= (p - self.center_offset).length_squared()
-    }
     fn dir_round_float(x: f32, dir: f32) -> f32 {
         if dir < 0. {
             (x - 0.5).ceil()
@@ -368,12 +364,38 @@ impl Contree {
         }
     }
 
-    pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Vec3 {
+    pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
         let mut p = pos;
+
+        if (!self.in_bounds(p)) {
+            let norm_dir = dir.normalize();
+
+            let move_distance = [
+                self.center_offset + (self.size as f32) / 2. - 0.5,
+                -self.center_offset + (self.size as f32) / 2. - 0.5,
+            ]
+            .iter()
+            .filter_map(|bound: &Vec3| {
+                let max_t = (bound - p) / norm_dir;
+
+                // Maximum element of max_t, ignoring inf, -inf, and NaN values
+                // This should find the outside bound of the tree
+                max_t
+                    .to_array()
+                    .into_iter()
+                    .filter(|&x| f32::is_normal(x))
+                    .filter(|&x| f32::is_sign_positive(x))
+                    .reduce(f32::max)
+            })
+            // Pick the closer bound to move to
+            .reduce(f32::min);
+
+            p += move_distance? * norm_dir;
+        }
+
         let mut find_p = p;
         let mut i = 0;
-
-        while (self.in_bounds(p) || self.correct_direction(p, dir)) && i < 50 {
+        while (self.in_bounds(p)) && i < 50 {
             let FindResult {
                 leaf_address,
                 traversal_stack,
@@ -388,7 +410,7 @@ impl Contree {
                 && self.leaves[laddr as usize].contains & (0b1 << cidx) != 0
                 && self.leaves[laddr as usize].children[cidx] != 0
             {
-                break;
+                return Some(p);
             }
 
             let child_size =
@@ -408,12 +430,11 @@ impl Contree {
             let move_distance = max_t.abs().to_array().into_iter().reduce(f32::min).unwrap();
 
             p += move_distance * norm_dir; // jump to boundary
-            dbg!(p);
 
             find_p = p + (dir_sign * 0.001);
             i += 1;
         }
-        p
+        None
     }
 }
 
@@ -605,44 +626,19 @@ mod tests {
         };
         contree.insert(Vec3::splat(-1.), 10);
 
-        assert_eq!(
-            contree.raycast(Vec3::splat(0.), Vec3::splat(1.)),
-            Vec3::splat(31.5)
-        );
+        assert_eq!(contree.raycast(Vec3::splat(0.), Vec3::splat(1.)), None);
         assert_eq!(
             contree.raycast(Vec3::splat(0.), Vec3::splat(-1.)),
-            Vec3::splat(-0.5)
+            Some(Vec3::splat(-0.5))
         );
         assert_eq!(
             contree.raycast(Vec3::new(0., -30., 0.), Vec3::new(0., -1., 0.)),
-            Vec3::new(0., -32.5, 0.)
+            None
         );
         assert_eq!(
             contree.raycast(Vec3::new(0., -30., 0.), Vec3::new(0., 1., 0.)),
-            Vec3::new(0., 31.5, 0.)
+            None
         );
-    }
-
-    #[test]
-    fn correct_direction() {
-        let mut contree = Contree {
-            size: 64,
-            ..Default::default()
-        };
-        contree.insert(Vec3::splat(-1.), 10);
-        assert!(contree.correct_direction(Vec3::splat(35.), Vec3::splat(-1.)));
-        assert!(contree.correct_direction(Vec3::new(0., -30., 0.), Vec3::new(0., 1., 0.)));
-    }
-
-    #[test]
-    fn incorrect_direction() {
-        let mut contree = Contree {
-            size: 64,
-            ..Default::default()
-        };
-        contree.insert(Vec3::splat(-1.), 10);
-        assert!(!contree.correct_direction(Vec3::splat(35.), Vec3::splat(1.)));
-        assert!(!contree.correct_direction(Vec3::new(0., -30., 0.), Vec3::new(0., -1., 0.)));
     }
 
     #[test]
@@ -673,7 +669,6 @@ mod tests {
         };
         let p = Vec3::splat(0.);
         contree.insert(p, 10);
-        // assert!(false);
 
         // assert_eq!(
         //     contree.raycast(Vec3::new(-100., 0., 0.), Vec3::new(1., 0., 0.)),
@@ -685,7 +680,7 @@ mod tests {
         // );
         assert_eq!(
             contree.raycast(Vec3::new(100., 50., 0.), Vec3::new(-2., -1., 0.)),
-            Vec3::new(0.5, 0.25, 0.)
+            Some(Vec3::new(0.5, 0.25, 0.))
         );
     }
 
@@ -700,7 +695,7 @@ mod tests {
 
         assert_eq!(
             contree.raycast(Vec3::new(-100., 0., 0.), Vec3::new(-1., 0., 0.)),
-            Vec3::new(-100., 0., 0.)
+            None
         );
     }
 }
