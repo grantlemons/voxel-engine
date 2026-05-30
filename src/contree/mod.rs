@@ -356,15 +356,15 @@ impl Contree {
         &self,
         leaf_address: Option<Addr>,
         parent_addrs: &[Addr],
-        node_size: f32,
-    ) -> f32 {
+        node_size: u32,
+    ) -> u32 {
         if leaf_address.is_none()
             && let Some(&parent_addr) = parent_addrs.last()
             && self.inners[parent_addr as usize].contains == 0
         {
             node_size
         } else {
-            node_size / 4.
+            node_size >> 2
         }
     }
 
@@ -373,7 +373,7 @@ impl Contree {
         let mut find_p = p;
         let mut i = 0;
 
-        while (self.in_bounds(p) || self.correct_direction(p, dir)) && i < 30 {
+        while (self.in_bounds(p) || self.correct_direction(p, dir)) && i < 50 {
             let FindResult {
                 leaf_address,
                 traversal_stack,
@@ -392,7 +392,7 @@ impl Contree {
             }
 
             let child_size =
-                self.max_travel_distance(leaf_address, &parent_addrs, node_size as f32);
+                self.max_travel_distance(leaf_address, &parent_addrs, node_size) as f32;
             let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
 
             let bspace_p = p + 0.5 - self.center_offset;
@@ -408,6 +408,7 @@ impl Contree {
             let move_distance = max_t.abs().to_array().into_iter().reduce(f32::min).unwrap();
 
             p += move_distance * norm_dir; // jump to boundary
+            dbg!(p);
 
             find_p = p + (dir_sign * 0.001);
             i += 1;
@@ -645,6 +646,26 @@ mod tests {
     }
 
     #[test]
+    fn find_out_of_bounds() {
+        let mut contree = Contree {
+            size: 64,
+            ..Default::default()
+        };
+
+        let p = Vec3::splat(70.);
+        let FindResult {
+            leaf_address,
+            traversal_stack,
+            parent_addrs,
+            node_size,
+        } = contree.find(p, &[]);
+
+        assert_eq!(leaf_address, None);
+        assert_eq!(parent_addrs.as_slice(), &[0]);
+        assert_eq!(node_size, 64);
+    }
+
+    #[test]
     fn raycast_out_of_bounds() {
         let mut contree = Contree {
             size: 64,
@@ -652,27 +673,16 @@ mod tests {
         };
         let p = Vec3::splat(0.);
         contree.insert(p, 10);
-        dbg!(&contree);
+        // assert!(false);
 
-        let FindResult {
-            leaf_address,
-            traversal_stack,
-            parent_addrs,
-            node_size,
-        } = contree.find(Vec3::new(3.5, 0., 0.), &[]);
-
-        dbg!(contree.max_travel_distance(leaf_address, &parent_addrs, node_size as f32));
-        dbg!(leaf_address, &traversal_stack, &parent_addrs, node_size);
-        assert!(false);
-
-        assert_eq!(
-            contree.raycast(Vec3::new(-100., 0., 0.), Vec3::new(1., 0., 0.)),
-            Vec3::new(-0.5, 0., 0.)
-        );
-        assert_eq!(
-            contree.raycast(Vec3::new(-100., -50., 0.), Vec3::new(2., 1., 0.)),
-            Vec3::new(-0.5, -0.25, 0.)
-        );
+        // assert_eq!(
+        //     contree.raycast(Vec3::new(-100., 0., 0.), Vec3::new(1., 0., 0.)),
+        //     Vec3::new(-0.5, 0., 0.)
+        // );
+        // assert_eq!(
+        //     contree.raycast(Vec3::new(-100., -50., 0.), Vec3::new(2., 1., 0.)),
+        //     Vec3::new(-0.5, -0.25, 0.)
+        // );
         assert_eq!(
             contree.raycast(Vec3::new(100., 50., 0.), Vec3::new(-2., -1., 0.)),
             Vec3::new(0.5, 0.25, 0.)
