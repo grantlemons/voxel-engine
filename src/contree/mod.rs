@@ -294,11 +294,25 @@ impl Contree {
             let child_leaf = current.leaf & (1 << index) != 0;
 
             if child_exists && child_leaf {
+                // leaf node contains this coordinate
+                // this does not mean that something exists at this coordinate
                 traversal_stack.pop();
+
+                // check if something exists at pos
+                let leaf = self.leaves[child_addr as usize];
+                let index = traversal_stack.last().unwrap();
+                let contains = leaf.contains & (1 << index) != 0;
+
+                let node_size = if contains {
+                    self.size >> ((parent_addrs.len() as u32 + 1) * 2)
+                } else {
+                    self.size >> ((parent_addrs.len() as u32) * 2)
+                };
+
                 return FindResult {
                     leaf_address: Some(child_addr),
                     traversal_stack,
-                    node_size: self.size / 4_u32.pow(parent_addrs.len() as u32 + 1),
+                    node_size,
                     parent_addrs,
                 };
             } else if child_exists {
@@ -309,7 +323,7 @@ impl Contree {
                 return FindResult {
                     leaf_address: None,
                     traversal_stack,
-                    node_size: self.size / 4_u32.pow(parent_addrs.len() as u32 - 1),
+                    node_size: self.size >> ((parent_addrs.len() as u32 - 1) * 2),
                     parent_addrs,
                 };
             }
@@ -503,6 +517,59 @@ mod tests {
         assert_eq!(traversal_stack.as_slice(), &[0]);
         assert_eq!(parent_addrs.as_slice(), &[0, 1]);
         assert_eq!(node_size, 1);
+    }
+
+    #[test]
+    fn node_sizing() {
+        let p = Vec3::splat(0.);
+        let mut contree = Contree {
+            size: 64,
+            ..Default::default()
+        };
+        contree.insert(p, 10);
+
+        dbg!(&contree);
+
+        let FindResult {
+            leaf_address,
+            traversal_stack,
+            parent_addrs,
+            node_size,
+        } = contree.find(p, &[]);
+        assert_eq!(leaf_address, Some(0));
+        assert_eq!(traversal_stack.as_slice(), &[0]);
+        assert_eq!(parent_addrs.as_slice(), &[0, 1]);
+        assert_eq!(node_size, 1);
+
+        let FindResult {
+            leaf_address,
+            traversal_stack,
+            parent_addrs,
+            node_size,
+        } = contree.find(Vec3::splat(1.), &[]);
+        assert_eq!(leaf_address, Some(0));
+        assert_eq!(parent_addrs.as_slice(), &[0, 1]);
+        assert_eq!(node_size, 4);
+
+        let FindResult {
+            leaf_address,
+            traversal_stack,
+            parent_addrs,
+            node_size,
+        } = contree.find(Vec3::splat(8.), &[]);
+        assert_eq!(leaf_address, None);
+        assert_eq!(parent_addrs.as_slice(), &[0, 1]);
+        assert_eq!(node_size, 16);
+
+        let FindResult {
+            leaf_address,
+            traversal_stack,
+            parent_addrs,
+            node_size,
+        } = contree.find(Vec3::splat(30.), &[]);
+        assert_eq!(leaf_address, None);
+        assert_eq!(parent_addrs.as_slice(), &[0]);
+        assert_eq!(node_size, 64);
     }
 
     #[test]
