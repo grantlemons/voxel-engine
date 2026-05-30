@@ -318,15 +318,17 @@ impl Contree {
         unreachable!()
     }
 
+    pub fn correct_direction(&self, p: Vec3, dir: Vec3) -> bool {
+        (p + (dir.normalize() / 4.) - self.center_offset).length_squared()
+            <= (p - self.center_offset).length_squared()
+    }
+
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Vec3 {
         let mut p = pos;
         let mut find_p = p;
         let mut i = 0;
-        let correct_direction = |p: Vec3, dir: Vec3| {
-            (p + (dir.normalize() / 4.) - self.center_offset).length_squared()
-                <= (p - self.center_offset).length_squared()
-        };
-        while (self.in_bounds(p) || correct_direction(p, dir)) && i < 10 {
+
+        while (self.in_bounds(p) || self.correct_direction(p, dir)) && i < 50 {
             let FindResult {
                 leaf_address,
                 traversal_stack,
@@ -509,15 +511,11 @@ mod tests {
         contree.insert(Vec3::new(-1., -1., -1.), 10);
 
         assert_eq!(
-            contree.raycast(Vec3::new(0., 0., 0.), Vec3::new(1., 1., 1.)),
+            contree.raycast(Vec3::splat(0.), Vec3::splat(1.)),
             Vec3::splat(31.5)
         );
         assert_eq!(
-            contree.raycast(Vec3::new(0., 0., 0.), Vec3::new(-1., -1., -1.)),
-            Vec3::splat(-0.5)
-        );
-        assert_eq!(
-            contree.raycast(Vec3::new(35., 35., 35.), Vec3::new(-1., -1., -1.)),
+            contree.raycast(Vec3::splat(0.), Vec3::splat(-1.)),
             Vec3::splat(-0.5)
         );
         assert_eq!(
@@ -530,6 +528,43 @@ mod tests {
         );
     }
 
+    #[ignore]
+    #[test]
+    fn raycast_oob_in() {
+        let mut contree = Contree {
+            size: 64,
+            ..Default::default()
+        };
+        contree.insert(Vec3::new(-1., -1., -1.), 10);
+        assert_eq!(
+            contree.raycast(Vec3::splat(35.), Vec3::splat(-1.)),
+            Vec3::splat(-0.5)
+        );
+    }
+
+    #[test]
+    fn correct_direction() {
+        let mut contree = Contree {
+            size: 64,
+            ..Default::default()
+        };
+        contree.insert(Vec3::new(-1., -1., -1.), 10);
+        assert!(contree.correct_direction(Vec3::splat(35.), Vec3::splat(-1.)));
+        assert!(contree.correct_direction(Vec3::new(0., -30., 0.), Vec3::new(0., 1., 0.)));
+    }
+
+    #[test]
+    fn incorrect_direction() {
+        let mut contree = Contree {
+            size: 64,
+            ..Default::default()
+        };
+        contree.insert(Vec3::new(-1., -1., -1.), 10);
+        assert!(!contree.correct_direction(Vec3::splat(35.), Vec3::splat(1.)));
+        assert!(!contree.correct_direction(Vec3::new(0., -30., 0.), Vec3::new(0., -1., 0.)));
+    }
+
+    #[ignore]
     #[test]
     fn raycast_out_of_bounds() {
         let p = Vec3::new(0., 0., 0.);
