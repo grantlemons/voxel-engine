@@ -9,6 +9,7 @@ use crate::{contree::ContreeLeaf, renderer::BufferWriteCommand};
 pub enum GPUBinding {
     #[default]
     Dummy,
+    #[allow(dead_code)]
     Channel {
         writer: Sender<BufferWriteCommand>,
         inner_buffer: wgpu::Buffer,

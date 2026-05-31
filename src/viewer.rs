@@ -78,11 +78,13 @@ impl ApplicationHandler for App {
                     new_data: bytemuck::cast_slice(&[
                         Voxel {
                             position: [2., 3., 0.],
+                            #[allow(clippy::eq_op)]
                             color: [255. / 255., 237. / 255., 222. / 255.],
                             ..Default::default()
                         },
                         Voxel {
                             position: [2., -3., 3.],
+                            #[allow(clippy::eq_op)]
                             color: [255. / 255., 237. / 255., 222. / 255.],
                             ..Default::default()
                         },
@@ -97,6 +99,7 @@ impl ApplicationHandler for App {
         let Some(renderer) = &mut self.renderer else {
             return;
         };
+        #[allow(clippy::single_match)]
         match event {
             DeviceEvent::MouseMotion { delta: (x, y) } => {
                 let rot_mult = 0.2;
