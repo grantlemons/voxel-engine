@@ -1,4 +1,6 @@
-use glam::Vec3;
+use glam::{UVec3, Vec3};
+
+use super::Contree;
 
 pub fn morton_code(norm_p: glam::UVec3) -> u64 {
     fn interleave(val: u32) -> u64 {
@@ -56,6 +58,26 @@ pub fn round_in_dir(x: Vec3, dir: Vec3) -> Vec3 {
     Vec3::from_slice(res.as_slice())
 }
 
+impl Contree {
+    pub(super) fn normalize(&self, p: Vec3) -> UVec3 {
+        (p - self.center_offset + (self.size as f32 / 2.))
+            .round()
+            .as_uvec3()
+    }
+
+    pub(super) fn in_bounds(&self, p: Vec3) -> bool {
+        fn svo_abs(v: f32) -> f32 {
+            if v < 0. { -v - 1. } else { v }
+        }
+        (p - self.center_offset)
+            .map(svo_abs)
+            .round()
+            .as_uvec3()
+            .max_element()
+            < self.size / 2
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,5 +111,13 @@ mod tests {
             round_in_dir(Vec3::splat(0.5), Vec3::splat(1.)),
             Vec3::splat(1.)
         )
+    }
+
+    #[test]
+    fn contains_skews_negative() {
+        let contree = Contree::default();
+
+        assert!(contree.in_bounds(Vec3::splat(-8.)));
+        assert!(!contree.in_bounds(Vec3::splat(8.)));
     }
 }

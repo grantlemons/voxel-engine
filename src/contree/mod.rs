@@ -1,10 +1,14 @@
 use bytemuck::{Pod, Zeroable};
 
-mod datastructure;
+mod finding;
 mod gpu_binding;
+mod node_insertion;
+mod node_management;
+mod raycasting;
 mod util;
 
-pub use datastructure::Contree;
+use glam::Vec3;
+use gpu_binding::GPUBinding;
 
 // 80 bytes
 #[repr(C, align(4))]
@@ -45,4 +49,61 @@ pub struct FindResult {
     parent_addrs: Vec<Addr>,
     /// Distance from face to face
     node_size: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct Contree {
+    pub center_offset: Vec3,
+    pub root: Addr,
+    /// Distance from face to face
+    pub size: u32,
+    inners: Vec<ContreeInner>,
+    leaves: Vec<ContreeLeaf>,
+    inner_tombstones: Vec<Addr>,
+    leaf_tombstones: Vec<Addr>,
+    gpu: GPUBinding,
+}
+
+impl std::fmt::Display for Contree {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "digraph {{
+\tnewrank=true;
+\trankdir=LR;"
+        )?;
+
+        let mut stack = vec![self.root];
+
+        while let Some(addr) = stack.pop() {
+            let cur = self.inners[addr as usize];
+            for i in 0..64 {
+                if (cur.contains & (0b1 << i)) != 0 {
+                    if (cur.leaf & (0b1 << i)) != 0 {
+                        writeln!(
+                            f,
+                            "\t{} -> \"leaf {}\" [label=<{}>]",
+                            addr, cur.children[i], i
+                        )?;
+
+                        let leaf_addr = cur.children[i];
+                        for j in 0..64 {
+                            if (self.leaves[leaf_addr as usize].contains & (0b1 << j)) != 0 {
+                                writeln!(
+                                    f,
+                                    "\t\"leaf {}\" -> \"mat {}\" [label=<{}>]",
+                                    leaf_addr, self.leaves[leaf_addr as usize].children[j], j
+                                )?;
+                            }
+                        }
+                    } else {
+                        writeln!(f, "\t{} -> {} [label=<{}>]", addr, cur.children[i], i)?;
+                        stack.push(cur.children[i]);
+                    }
+                }
+            }
+        }
+
+        writeln!(f, "}}")
+    }
 }
