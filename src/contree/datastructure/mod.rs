@@ -6,6 +6,15 @@ use std::fmt::Display;
 
 mod tests;
 
+bitflags::bitflags! {
+    struct TreeFlags: u8 {
+        const EXISTS = 1 << 0;
+        const LEAF = 1 << 1;
+        const LIGHT = 1 << 2;
+        const _ = 0; // set all other bits to zero
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Contree {
     pub center_offset: Vec3,
@@ -79,7 +88,7 @@ impl Contree {
     fn create_inner_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
         let addr = self.create_root_node();
         self.inners[parent as usize].children[index] = addr;
-        self.update_parent_bitflags(parent, index, true, false, false);
+        self.update_parent_bitflags(parent, index, TreeFlags::EXISTS);
         addr
     }
 
@@ -100,24 +109,17 @@ impl Contree {
             }
         };
         self.inners[parent as usize].children[index] = addr;
-        self.update_parent_bitflags(parent, index, true, true, false);
+        self.update_parent_bitflags(parent, index, TreeFlags::EXISTS | TreeFlags::LEAF);
 
         self.gpu.write_leaf(addr, &[new_node]);
         addr
     }
 
-    fn update_parent_bitflags(
-        &mut self,
-        parent: Addr,
-        child: ChildIndex,
-        exists: bool,
-        leaf: bool,
-        light: bool,
-    ) {
+    fn update_parent_bitflags(&mut self, parent: Addr, child: ChildIndex, flags: TreeFlags) {
         let parent_node = &mut self.inners[parent as usize];
-        parent_node.contains |= (exists as u64) << child;
-        parent_node.leaf |= (leaf as u64) << child;
-        parent_node.light |= (light as u64) << child;
+        parent_node.contains |= (flags.contains(TreeFlags::EXISTS) as u64) << child;
+        parent_node.leaf |= (flags.contains(TreeFlags::LEAF) as u64) << child;
+        parent_node.light |= (flags.contains(TreeFlags::LIGHT) as u64) << child;
 
         self.gpu.write_inner(parent, &[*parent_node]);
     }
