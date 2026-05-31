@@ -162,6 +162,17 @@ mod tests {
     }
 
     #[test]
+    fn grow_multiple_times() {
+        let mut contree = create_contree(16, Vec3::ZERO);
+
+        contree.insert(Vec3::splat(100.), 10);
+        assert_eq!(contree.size, 256);
+        assert_eq!(contree.center_offset, Vec3::splat(64.));
+
+        assert!(contree.in_bounds(Vec3::splat(-7.)));
+    }
+
+    #[test]
     fn raycast_in_bounds() {
         let contree = create_contree(64, Vec3::splat(-1.));
 

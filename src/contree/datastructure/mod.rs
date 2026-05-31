@@ -127,11 +127,13 @@ impl Contree {
     /// Grow upward until the position is in bounds
     fn grow_to_accomodate(&mut self, pos: Vec3) {
         while !self.in_bounds(pos) {
-            dbg!(self.size, pos, self.center_offset);
             let new_root = self.create_root_node();
 
-            let new_center =
-                ((pos - self.center_offset) / self.size as f32).round() * self.size as f32;
+            // TODO: Find a better way to grow
+            let new_center = ((pos - self.center_offset) / self.size as f32)
+                .round()
+                .clamp(Vec3::splat(-3.), Vec3::splat(3.)) // clamp insures the current tree is enclosed
+                * self.size as f32;
             let old_root_coords = self.center_offset;
             self.size *= 4;
             self.center_offset = new_center;
@@ -145,7 +147,6 @@ impl Contree {
                 .write_inner(new_root, &[self.inners[new_root as usize]]);
 
             self.root = new_root;
-            // todo!("Contree cannot grow yet!")
         }
     }
 
