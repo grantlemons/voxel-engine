@@ -130,9 +130,15 @@ impl Contree {
             let new_root = self.create_root_node();
             self.size *= 4;
 
+            let new_center = Vec3::ZERO;
+            let old_root_coords = self.center_offset;
+            self.center_offset = new_center;
+            let old_root_new_index = to_base_64(morton_code(self.normalize(old_root_coords)))
+                .last()
+                .unwrap();
+
             // set current node as child of new node
-            let self_index = 0;
-            self.inners[new_root as usize].children[self_index] = self.root;
+            self.inners[new_root as usize].children[old_root_new_index] = self.root;
             self.gpu
                 .write_inner(new_root, &[self.inners[new_root as usize]]);
 
@@ -141,7 +147,7 @@ impl Contree {
         }
     }
 
-    pub fn insert(&mut self, pos: Vec3, material: u8) -> Vec<Addr> {
+    pub fn insert(&mut self, pos: Vec3, material: u8) -> FindResult {
         self.grow_to_accomodate(pos);
 
         let FindResult {
@@ -176,7 +182,12 @@ impl Contree {
                 self.gpu.write_leaf(leaf_addr, &[*leaf]);
             }
         }
-        parent_addrs
+        FindResult {
+            leaf_address,
+            traversal_stack,
+            parent_addrs,
+            node_size: 1,
+        }
     }
 
     fn add_parents(
@@ -197,8 +208,8 @@ impl Contree {
     }
 
     pub fn find(&self, pos: Vec3, given_parent_addrs: &[Addr]) -> FindResult {
-        let code = morton_code(self.normalize(pos));
-        let mut traversal_stack: Vec<ChildIndex> = to_base_64(code);
+        let mut traversal_stack: Vec<ChildIndex> =
+            to_base_64(morton_code(self.normalize(pos))).collect();
 
         for _ in given_parent_addrs {
             traversal_stack.pop();

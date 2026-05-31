@@ -20,18 +20,24 @@ pub fn morton_code(norm_p: glam::UVec3) -> u64 {
     (interleave(norm_p.x) << 2) | (interleave(norm_p.y) << 1) | interleave(norm_p.z)
 }
 
-pub fn to_base_64(code: u64) -> Vec<usize> {
-    let mut digits = Vec::new();
+pub fn to_base_64(code: u64) -> impl Iterator<Item = usize> {
     let mut n = code;
-    if n == 0 {
-        digits.push(0);
-        return digits;
-    }
-    while n != 0 {
-        digits.push((n as usize) & 0b111111);
-        n >>= 6;
-    }
-    digits
+    let mut first = true;
+    std::iter::from_fn(move || {
+        if n == 0 {
+            if first {
+                first = false;
+                Some(0usize)
+            } else {
+                None
+            }
+        } else {
+            first = false;
+            let res = Some((n as usize) & 0b111111);
+            n >>= 6usize;
+            res
+        }
+    })
 }
 
 pub fn round_in_dir(x: Vec3, dir: Vec3) -> Vec3 {
@@ -64,7 +70,7 @@ mod tests {
     #[test]
     fn morton_code_zero() {
         let code = morton_code(UVec3::new(0, 0, 0));
-        let index = to_base_64(code);
+        let index = to_base_64(code).collect::<Vec<_>>();
         assert_eq!(code, 0);
         assert_eq!(index, &[0]);
     }
