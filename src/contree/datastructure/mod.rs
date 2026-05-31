@@ -31,7 +31,7 @@ impl Default for Contree {
             leaf_tombstones: Default::default(),
             gpu: Default::default(),
         };
-        new.create_root_node();
+        new.root = new.create_root_node();
         new
     }
 }
@@ -122,8 +122,8 @@ impl Contree {
         self.gpu.write_inner(parent, &[*parent_node]);
     }
 
-    pub fn insert(&mut self, pos: Vec3, material: u8) -> Vec<Addr> {
-        // Grow upward until the position is in bounds
+    /// Grow upward until the position is in bounds
+    fn grow_to_accomodate(&mut self, pos: Vec3) {
         while !self.in_bounds(pos) {
             let new_root = self.create_root_node();
             self.size *= 4;
@@ -135,8 +135,12 @@ impl Contree {
                 .write_inner(new_root, &[self.inners[new_root as usize]]);
 
             self.root = new_root;
-            todo!()
+            todo!("Contree cannot grow yet!")
         }
+    }
+
+    pub fn insert(&mut self, pos: Vec3, material: u8) -> Vec<Addr> {
+        self.grow_to_accomodate(pos);
 
         let FindResult {
             leaf_address,
