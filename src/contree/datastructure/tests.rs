@@ -15,6 +15,14 @@ mod tests {
     }
 
     #[test]
+    fn contains_skews_negative() {
+        let contree = create_contree(16, Vec3::ZERO);
+
+        assert!(contree.in_bounds(Vec3::splat(-8.)));
+        assert!(!contree.in_bounds(Vec3::splat(8.)));
+    }
+
+    #[test]
     fn traverse_empty() {
         let contree = Contree::default();
         let FindResult {
@@ -144,7 +152,7 @@ mod tests {
         assert_eq!(contree.center_offset, Vec3::splat(16.));
 
         assert!(contree.in_bounds(Vec3::splat(32.)));
-        assert!(contree.in_bounds(Vec3::splat(-15.)));
+        assert!(contree.in_bounds(Vec3::splat(-16.)));
         assert!(!contree.in_bounds(Vec3::splat(-32.)));
     }
 
@@ -169,7 +177,7 @@ mod tests {
         assert_eq!(contree.size, 256);
         assert_eq!(contree.center_offset, Vec3::splat(64.));
 
-        assert!(contree.in_bounds(Vec3::splat(-7.)));
+        assert!(contree.in_bounds(Vec3::splat(-8.)));
     }
 
     #[test]
