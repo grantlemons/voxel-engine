@@ -31,7 +31,6 @@ impl GPUBinding {
                     new_data: cast_slice(data).to_vec(),
                 });
             }
-            _ => {}
         }
     }
 
@@ -49,7 +48,6 @@ impl GPUBinding {
                     new_data: cast_slice(data).to_vec(),
                 });
             }
-            _ => {}
         }
     }
 }
