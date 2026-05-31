@@ -61,7 +61,7 @@ impl Contree {
             .round()
             .as_uvec3()
             .max_element()
-            <= self.size / 2
+            < self.size / 2
     }
 
     fn create_root_node(&mut self) -> Addr {
@@ -127,11 +127,13 @@ impl Contree {
     /// Grow upward until the position is in bounds
     fn grow_to_accomodate(&mut self, pos: Vec3) {
         while !self.in_bounds(pos) {
+            dbg!(self.size, pos, self.center_offset);
             let new_root = self.create_root_node();
-            self.size *= 4;
 
-            let new_center = Vec3::ZERO;
+            let new_center =
+                ((pos - self.center_offset) / self.size as f32).round() * self.size as f32;
             let old_root_coords = self.center_offset;
+            self.size *= 4;
             self.center_offset = new_center;
             let old_root_new_index = to_base_64(morton_code(self.normalize(old_root_coords)))
                 .last()
@@ -143,7 +145,7 @@ impl Contree {
                 .write_inner(new_root, &[self.inners[new_root as usize]]);
 
             self.root = new_root;
-            todo!("Contree cannot grow yet!")
+            // todo!("Contree cannot grow yet!")
         }
     }
 
@@ -283,8 +285,10 @@ impl Contree {
 
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
         let mut p = pos;
+        let mut find_p = p;
+        let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
 
-        if !self.in_bounds(p) {
+        if !self.in_bounds(find_p) {
             let norm_dir = dir.normalize();
 
             let move_distance = [
@@ -308,11 +312,11 @@ impl Contree {
             .reduce(f32::min);
 
             p += move_distance? * norm_dir;
+            find_p = p + (dir_sign * 0.001);
         }
 
-        let mut find_p = p;
         let mut i = 0;
-        while self.in_bounds(p) && i < 50 {
+        while self.in_bounds(find_p) && i < 50 {
             let FindResult {
                 leaf_address,
                 traversal_stack,

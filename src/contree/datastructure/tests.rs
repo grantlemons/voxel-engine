@@ -1,9 +1,11 @@
+#[allow(clippy::module_inception)]
 #[cfg(test)]
 mod tests {
     use crate::contree::{Contree, ContreeInner, ContreeLeaf, FindResult};
     use glam::Vec3;
 
     fn create_contree(size: u32, p: Vec3) -> Contree {
+        assert!(size > 4, "The root node cannot be a leaf!");
         let mut contree = Contree {
             size,
             ..Default::default()
@@ -124,11 +126,39 @@ mod tests {
         };
         contree.insert(p, 10);
         contree.insert(Vec3::new(0., 0., 1.), 1);
-        contree.insert(Vec3::new(0., 1., 0.), 2);
         contree.insert(Vec3::new(1., 0., 0.), 3);
         contree.insert(Vec3::new(-10., 10., 10.), 4);
         contree.insert(Vec3::new(-10., 0., 0.), 5);
         contree.insert(Vec3::new(-10., -10., 0.), 6);
+
+        assert_eq!(contree.root, 0);
+        assert_eq!(contree.size, 4_u32.pow(3));
+    }
+
+    #[test]
+    fn grow_positive() {
+        let mut contree = create_contree(16, Vec3::ZERO);
+
+        contree.insert(Vec3::splat(8.), 10);
+        assert_eq!(contree.size, 64);
+        assert_eq!(contree.center_offset, Vec3::splat(16.));
+
+        assert!(contree.in_bounds(Vec3::splat(32.)));
+        assert!(contree.in_bounds(Vec3::splat(-15.)));
+        assert!(!contree.in_bounds(Vec3::splat(-32.)));
+    }
+
+    #[test]
+    fn grow_negative() {
+        let mut contree = create_contree(16, Vec3::ZERO);
+
+        contree.insert(Vec3::splat(-9.), 10);
+        assert_eq!(contree.size, 64);
+        assert_eq!(contree.center_offset, Vec3::splat(-16.));
+
+        assert!(contree.in_bounds(Vec3::splat(-32.)));
+        assert!(contree.in_bounds(Vec3::splat(15.)));
+        assert!(!contree.in_bounds(Vec3::splat(32.)));
     }
 
     #[test]
