@@ -39,6 +39,44 @@ fn calculate_color(p: vec3f, dir: vec3f, material: u32) -> vec3f {
     return vec3f(0.);
 }
 
+fn svo_abs(v: f32) -> f32 {
+    if v < 0. {
+        return -v - 1.;
+    } else {
+        return v;
+    }
+}
+
+fn svo_abs_vector(v: vec3f) -> vec3f {
+    return vec3f(
+        svo_abs(v.x),
+        svo_abs(v.y),
+        svo_abs(v.z)
+    );
+}
+
+fn max_component(v: vec3u) -> u32 {
+    if v.x > v.y && v.x > v.z {
+        return v.x;
+    }
+    if v.y > v.x && v.y > v.z {
+        return v.y;
+    }
+    return v.z;
+}
+
+fn in_bounds(p: vec3f) -> bool {
+    return max_component(
+        vec3u(
+            round(
+                svo_abs_vector(
+                    p - contree.center_offset
+                )
+            )
+        )
+    ) < (contree.size / 2);
+}
+
 // traverse a ray, bouncing a given maximum number of times
 fn raycast(p: vec3f, dir: vec3f, bounces: u32) -> vec3f {
     return vec3f(0.);
