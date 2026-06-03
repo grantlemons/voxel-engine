@@ -19,12 +19,10 @@ impl Contree {
         }
     }
 
-    pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
+    fn raycast_to_bounds(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
         let mut p = pos;
-        let mut find_p = p;
-        let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
 
-        if !self.in_bounds(find_p) {
+        if !self.in_bounds(p) {
             let norm_dir = dir.normalize();
 
             let move_distance = [
@@ -48,8 +46,15 @@ impl Contree {
             .reduce(f32::min);
 
             p += move_distance? * norm_dir;
-            find_p = p + (dir_sign * 0.001);
         }
+
+        Some(p)
+    }
+
+    pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
+        let mut p = self.raycast_to_bounds(pos, dir)?;
+        let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
+        let mut find_p = p + (dir_sign * 0.01);
 
         let mut i = 0;
         while self.in_bounds(find_p) && i < 50 {
