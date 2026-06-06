@@ -77,7 +77,6 @@ impl Contree {
 
             let child_size =
                 self.max_travel_distance(leaf_address, &parent_addrs, node_size) as f32;
-            let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
 
             let bspace_p = p + 0.5 - self.center_offset;
             let bspace_boundary =
@@ -92,8 +91,10 @@ impl Contree {
             let move_distance = max_t.abs().to_array().into_iter().reduce(f32::min).unwrap();
 
             p += move_distance * norm_dir; // jump to boundary
+            // p[move_axis] = pspace_boundary[move_axis]; // snap to boundary to reduce FPE
+            dbg!(p);
 
-            find_p = p + (dir_sign * 0.001);
+            find_p = p + (dir_sign * 0.00001);
             i += 1;
         }
         None
@@ -102,6 +103,7 @@ impl Contree {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     fn create_contree(size: u32, p: Vec3) -> Contree {
@@ -154,5 +156,25 @@ mod tests {
                 .raycast(Vec3::new(-100., 0., 0.), Vec3::new(-1., 0., 0.))
                 .is_none()
         );
+    }
+
+    #[test]
+    fn raycast_fan() {
+        let contree = create_contree(16, Vec3::ZERO);
+
+        let distance = 5.;
+        let pos = Vec3::new(distance + 0.5, 0., 0.);
+
+        let mut dir = Vec3::new(-distance, 1., 0.);
+        // TODO: Can this be (<=)?
+        while dir.y > -1. {
+            if dir.y.abs() < 0.5 {
+                assert!(contree.raycast(pos, dir).is_some());
+            } else {
+                assert!(contree.raycast(pos, dir).is_none());
+            }
+            // round to account for FPE
+            dir = ((dir + Vec3::new(0., -0.0005, 0.)) / 0.0005).round() * 0.0005;
+        }
     }
 }
