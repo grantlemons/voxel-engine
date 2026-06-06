@@ -4,51 +4,39 @@ use flume::Sender;
 use super::{Addr, ContreeInner};
 use crate::{contree::ContreeLeaf, renderer::BufferWriteCommand};
 
-#[derive(Debug, Clone, Default)]
-#[non_exhaustive]
-pub enum GPUBinding {
-    #[default]
-    Dummy,
-    #[allow(dead_code)]
-    Channel {
-        writer: Sender<BufferWriteCommand>,
-        inner_buffer: wgpu::Buffer,
-        leaf_buffer: wgpu::Buffer,
-    },
+pub trait GPUBindable: std::fmt::Debug + Clone {
+    fn write_inner(&self, addr: Addr, data: &[ContreeInner]);
+    fn write_leaf(&self, addr: Addr, data: &[ContreeLeaf]);
 }
 
-impl GPUBinding {
-    pub fn write_inner(&self, addr: Addr, data: &[ContreeInner]) {
-        match self {
-            GPUBinding::Dummy => {}
-            GPUBinding::Channel {
-                writer,
-                inner_buffer,
-                ..
-            } => {
-                let _ = writer.send(BufferWriteCommand {
-                    target_buffer: inner_buffer.clone(),
-                    offset: addr as u64 * size_of::<ContreeInner>() as u64,
-                    new_data: cast_slice(data).to_vec(),
-                });
-            }
-        }
+#[derive(Debug, Clone, Default)]
+pub struct DummyBinding;
+impl GPUBindable for DummyBinding {
+    fn write_inner(&self, _: Addr, _: &[ContreeInner]) {}
+    fn write_leaf(&self, _: Addr, _: &[ContreeLeaf]) {}
+}
+
+#[derive(Debug, Clone)]
+pub struct ChannelBinding {
+    pub writer: Sender<BufferWriteCommand>,
+    pub inner_buffer: wgpu::Buffer,
+    pub leaf_buffer: wgpu::Buffer,
+}
+
+impl GPUBindable for ChannelBinding {
+    fn write_inner(&self, addr: Addr, data: &[ContreeInner]) {
+        let _ = self.writer.send(BufferWriteCommand {
+            target_buffer: self.inner_buffer.clone(),
+            offset: addr as u64 * size_of::<ContreeInner>() as u64,
+            new_data: cast_slice(data).to_vec(),
+        });
     }
 
-    pub fn write_leaf(&self, addr: Addr, data: &[ContreeLeaf]) {
-        match self {
-            GPUBinding::Dummy => {}
-            GPUBinding::Channel {
-                writer,
-                inner_buffer,
-                ..
-            } => {
-                let _ = writer.send(BufferWriteCommand {
-                    target_buffer: inner_buffer.clone(),
-                    offset: addr as u64 * size_of::<ContreeLeaf>() as u64,
-                    new_data: cast_slice(data).to_vec(),
-                });
-            }
-        }
+    fn write_leaf(&self, addr: Addr, data: &[ContreeLeaf]) {
+        let _ = self.writer.send(BufferWriteCommand {
+            target_buffer: self.inner_buffer.clone(),
+            offset: addr as u64 * size_of::<ContreeLeaf>() as u64,
+            new_data: cast_slice(data).to_vec(),
+        });
     }
 }

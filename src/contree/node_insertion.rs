@@ -1,8 +1,10 @@
 use glam::Vec3;
 
+use crate::contree::gpu_binding::GPUBindable;
+
 use super::{Addr, ChildIndex, Contree, FindResult, util::*};
 
-impl Contree {
+impl<T: GPUBindable> Contree<T> {
     /// Grow upward until the position is in bounds
     fn grow_to_accomodate(&mut self, pos: Vec3) {
         while !self.in_bounds(pos) {
@@ -22,7 +24,7 @@ impl Contree {
 
             // set current node as child of new node
             self.inners[new_root as usize].children[old_root_new_index] = self.root;
-            self.gpu
+            self.binding
                 .write_inner(new_root, &[self.inners[new_root as usize]]);
 
             self.root = new_root;
@@ -47,7 +49,7 @@ impl Contree {
                 let child_index = *traversal_stack.last().unwrap();
                 leaf.children[child_index] = material;
                 leaf.contains |= 1 << child_index;
-                self.gpu.write_leaf(leaf_addr, &[*leaf]);
+                self.binding.write_leaf(leaf_addr, &[*leaf]);
             }
             None => {
                 let (leaf_addr, child_index) =
@@ -60,7 +62,7 @@ impl Contree {
 
                 leaf.children[child_index] = material;
                 leaf.contains |= 1 << child_index;
-                self.gpu.write_leaf(leaf_addr, &[*leaf]);
+                self.binding.write_leaf(leaf_addr, &[*leaf]);
             }
         }
         FindResult {
@@ -92,9 +94,9 @@ impl Contree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contree::ContreeInner;
+    use crate::contree::{ContreeInner, gpu_binding::DummyBinding};
 
-    fn create_contree(size: u32, p: Vec3) -> Contree {
+    fn create_contree(size: u32, p: Vec3) -> Contree<DummyBinding> {
         assert!(size > 4, "The root node cannot be a leaf!");
         let mut contree = Contree {
             size,
@@ -106,7 +108,7 @@ mod tests {
     #[test]
     fn insert_many_no_grow() {
         let p = Vec3::new(0., 0., 0.);
-        let mut contree = Contree {
+        let mut contree = Contree::<DummyBinding> {
             root: 0,
             size: 4_u32.pow(3),
             inners: vec![ContreeInner {

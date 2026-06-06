@@ -9,7 +9,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::renderer::{BufferWriteCommand, Renderer, Voxel};
+use crate::renderer::Renderer;
 
 pub struct App {
     pub renderer: Option<Renderer>,
@@ -43,56 +43,6 @@ impl ApplicationHandler for App {
         let window_attributes = Window::default_attributes().with_title("Voxel Engine");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.renderer = Some(pollster::block_on(Renderer::new(window)).unwrap());
-
-        if let Some(ref renderer) = self.renderer {
-            renderer
-                .buffer_writer
-                .send(BufferWriteCommand {
-                    target_buffer: renderer.buffers.voxels.clone(),
-                    offset: 0,
-                    new_data: bytemuck::cast_slice(&[
-                        Voxel {
-                            position: [0., 0., 2.],
-                            color: [1., 1., 1.],
-                            ..Default::default()
-                        },
-                        Voxel {
-                            position: [1., 0., 3.],
-                            color: [1., 1., 1.],
-                            ..Default::default()
-                        },
-                        Voxel {
-                            position: [0., 1., 3.],
-                            color: [1., 1., 1.],
-                            ..Default::default()
-                        },
-                    ])
-                    .to_vec(),
-                })
-                .unwrap();
-            renderer
-                .buffer_writer
-                .send(BufferWriteCommand {
-                    target_buffer: renderer.buffers.lights.clone(),
-                    offset: 0,
-                    new_data: bytemuck::cast_slice(&[
-                        Voxel {
-                            position: [2., 3., 0.],
-                            #[allow(clippy::eq_op)]
-                            color: [255. / 255., 237. / 255., 222. / 255.],
-                            ..Default::default()
-                        },
-                        Voxel {
-                            position: [2., -3., 3.],
-                            #[allow(clippy::eq_op)]
-                            color: [255. / 255., 237. / 255., 222. / 255.],
-                            ..Default::default()
-                        },
-                    ])
-                    .to_vec(),
-                })
-                .unwrap();
-        }
     }
 
     fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {

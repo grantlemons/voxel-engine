@@ -1,3 +1,5 @@
+use crate::contree::gpu_binding::GPUBindable;
+
 use super::{Addr, ChildIndex, Contree, ContreeInner, ContreeLeaf};
 
 bitflags::bitflags! {
@@ -9,7 +11,7 @@ bitflags::bitflags! {
     }
 }
 
-impl Default for Contree {
+impl<T: GPUBindable + Default> Default for Contree<T> {
     fn default() -> Self {
         let mut new = Self {
             center_offset: Default::default(),
@@ -19,14 +21,31 @@ impl Default for Contree {
             leaves: Default::default(),
             inner_tombstones: Default::default(),
             leaf_tombstones: Default::default(),
-            gpu: Default::default(),
+            binding: Default::default(),
         };
         new.root = new.create_root_node();
         new
     }
 }
 
-impl Contree {
+impl<T: GPUBindable> Contree<T> {
+    pub fn new(binding: T) -> Self {
+        let mut new = Self {
+            center_offset: Default::default(),
+            root: Default::default(),
+            size: 16,
+            inners: Default::default(),
+            leaves: Default::default(),
+            inner_tombstones: Default::default(),
+            leaf_tombstones: Default::default(),
+            binding,
+        };
+        new.root = new.create_root_node();
+        new
+    }
+}
+
+impl<T: GPUBindable> Contree<T> {
     pub(super) fn create_root_node(&mut self) -> Addr {
         let new_node = ContreeInner {
             contains: 0,
@@ -44,7 +63,7 @@ impl Contree {
                 (self.inners.len() - 1) as Addr
             }
         };
-        self.gpu.write_inner(addr, &[new_node]);
+        self.binding.write_inner(addr, &[new_node]);
         addr
     }
 
@@ -74,7 +93,7 @@ impl Contree {
         self.inners[parent as usize].children[index] = addr;
         self.update_parent_bitflags(parent, index, TreeFlags::EXISTS | TreeFlags::LEAF);
 
-        self.gpu.write_leaf(addr, &[new_node]);
+        self.binding.write_leaf(addr, &[new_node]);
         addr
     }
 
@@ -84,6 +103,6 @@ impl Contree {
         parent_node.leaf |= (flags.contains(TreeFlags::LEAF) as u64) << child;
         parent_node.light |= (flags.contains(TreeFlags::LIGHT) as u64) << child;
 
-        self.gpu.write_inner(parent, &[*parent_node]);
+        self.binding.write_inner(parent, &[*parent_node]);
     }
 }

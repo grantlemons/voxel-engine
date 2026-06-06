@@ -1,7 +1,9 @@
+use crate::contree::gpu_binding::GPUBindable;
+
 use super::{Addr, Contree, FindResult, util::*};
 use glam::Vec3;
 
-impl Contree {
+impl<T: GPUBindable> Contree<T> {
     // When moving in a node, unless you know it has no children, you can only move 1/4 at a time
     fn max_travel_distance(
         &self,
@@ -103,10 +105,10 @@ impl Contree {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+    use crate::contree::gpu_binding::DummyBinding;
 
-    fn create_contree(size: u32, p: Vec3) -> Contree {
+    fn create_contree(size: u32, p: Vec3) -> Contree<DummyBinding> {
         assert!(size > 4, "The root node cannot be a leaf!");
         let mut contree = Contree {
             size,

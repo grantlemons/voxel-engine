@@ -8,12 +8,12 @@ mod raycasting;
 mod util;
 
 use glam::Vec3;
-use gpu_binding::GPUBinding;
+pub use gpu_binding::*;
 
 // 80 bytes
 #[repr(C, align(4))]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
-struct ContreeLeaf {
+pub struct ContreeLeaf {
     contains: u64,
     light: u64,
     children: [u8; 64],
@@ -22,7 +22,7 @@ struct ContreeLeaf {
 // 280 bytes
 #[repr(C, align(4))]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
-struct ContreeInner {
+pub struct ContreeInner {
     contains: u64,
     leaf: u64,
     light: u64,
@@ -31,7 +31,7 @@ struct ContreeInner {
 
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct Material {
+pub struct Material {
     color: [f32; 4],
     reflectivity: f32,
     padding: [u8; 12],
@@ -52,7 +52,7 @@ pub struct FindResult {
 }
 
 #[derive(Debug, Clone)]
-pub struct Contree {
+pub struct Contree<T: GPUBindable> {
     pub center_offset: Vec3,
     pub root: Addr,
     /// Distance from face to face
@@ -61,10 +61,10 @@ pub struct Contree {
     leaves: Vec<ContreeLeaf>,
     inner_tombstones: Vec<Addr>,
     leaf_tombstones: Vec<Addr>,
-    gpu: GPUBinding,
+    binding: T,
 }
 
-impl std::fmt::Display for Contree {
+impl<T: GPUBindable> std::fmt::Display for Contree<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,

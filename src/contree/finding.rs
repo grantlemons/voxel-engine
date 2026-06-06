@@ -1,8 +1,10 @@
 use glam::Vec3;
 
+use crate::contree::gpu_binding::GPUBindable;
+
 use super::{Addr, ChildIndex, Contree, FindResult, util::*};
 
-impl Contree {
+impl<T: GPUBindable> Contree<T> {
     pub fn find(&self, pos: Vec3, given_parent_addrs: &[Addr]) -> FindResult {
         let mut traversal_stack: Vec<ChildIndex> =
             to_base_64(morton_code(self.normalize(pos))).collect();
@@ -63,11 +65,11 @@ impl Contree {
 
 #[cfg(test)]
 mod tests {
-    use crate::contree::{ContreeInner, ContreeLeaf};
+    use crate::contree::{ContreeInner, ContreeLeaf, gpu_binding::DummyBinding};
 
     use super::*;
 
-    fn create_contree(size: u32, p: Vec3) -> Contree {
+    fn create_contree(size: u32, p: Vec3) -> Contree<DummyBinding> {
         assert!(size > 4, "The root node cannot be a leaf!");
         let mut contree = Contree {
             size,
@@ -90,7 +92,7 @@ mod tests {
 
     #[test]
     fn traverse_empty() {
-        let contree = Contree::default();
+        let contree = Contree::<DummyBinding>::default();
         let FindResult {
             leaf_address,
             traversal_stack,
@@ -112,7 +114,7 @@ mod tests {
         let mut leaf_children = [0; 64];
         inner_children[56] = 0;
         leaf_children[0] = 10;
-        let contree = Contree {
+        let contree = Contree::<DummyBinding> {
             root: 0,
             size: 16,
             inners: vec![ContreeInner {
@@ -174,7 +176,7 @@ mod tests {
 
     #[test]
     fn find_out_of_bounds() {
-        let contree = Contree::default();
+        let contree = Contree::<DummyBinding>::default();
         let p = Vec3::splat(contree.size as f32);
         let FindResult {
             leaf_address,

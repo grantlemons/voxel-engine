@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use glam::{Mat4, Vec3, Vec4Swizzles, vec4};
 
-use crate::contree::Contree;
+use crate::contree::{ChannelBinding, Contree};
 
 #[derive(Debug)]
 pub struct BufferWriteCommand {
@@ -59,16 +59,15 @@ pub struct Renderer {
     state: State,
     pub window: Arc<winit::window::Window>,
     pub camera: Camera,
-    pub contree: Contree,
+    pub contree: Contree<ChannelBinding>,
     pub buffers: Arc<Buffers>,
-    pub buffer_writer: flume::Sender<BufferWriteCommand>,
     buffer_reader: flume::Receiver<BufferWriteCommand>,
 }
 
 #[derive(Debug)]
 pub struct Buffers {
-    pub voxels: wgpu::Buffer,
-    pub lights: wgpu::Buffer,
+    pub inner_nodes: wgpu::Buffer,
+    pub leaf_nodes: wgpu::Buffer,
 }
 
 #[derive(Debug)]
@@ -164,15 +163,15 @@ impl State {
             ],
         });
 
-        let voxels = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Voxel List"),
+        let inner_nodes = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Inner Node Arena"),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             size: device.limits().max_storage_buffer_binding_size as u64,
             mapped_at_creation: false,
         });
 
-        let lights = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Light List"),
+        let leaf_nodes = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Leaf Node Arena"),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             size: device.limits().max_storage_buffer_binding_size as u64,
             mapped_at_creation: false,
@@ -185,7 +184,7 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &voxels,
+                        buffer: &inner_nodes,
                         offset: 0,
                         size: None,
                     }),
@@ -193,7 +192,7 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &lights,
+                        buffer: &leaf_nodes,
                         offset: 0,
                         size: None,
                     }),
@@ -245,7 +244,10 @@ impl State {
             config,
             pipeline,
             bind_group,
-            buffers: Arc::new(Buffers { voxels, lights }),
+            buffers: Arc::new(Buffers {
+                inner_nodes,
+                leaf_nodes,
+            }),
         })
     }
 }
@@ -257,10 +259,13 @@ impl Renderer {
         Ok(Self {
             window,
             buffers: state.buffers.clone(),
+            contree: Contree::<ChannelBinding>::new(ChannelBinding {
+                writer: buffer_writer,
+                inner_buffer: state.buffers.inner_nodes.clone(),
+                leaf_buffer: state.buffers.leaf_nodes.clone(),
+            }),
             state,
             camera: Default::default(),
-            contree: Default::default(),
-            buffer_writer,
             buffer_reader,
         })
     }
