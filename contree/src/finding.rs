@@ -4,6 +4,7 @@ use super::{Addr, ChildIndex, Contree, util::*};
 
 #[derive(Debug)]
 pub struct FindResult {
+    pub material: Option<u8>,
     pub leaf_address: Option<Addr>,
     pub traversal_stack: Vec<ChildIndex>,
     pub parent_addrs: Vec<Addr>,
@@ -24,7 +25,8 @@ impl Contree {
         parent_addrs.push(self.root);
         let mut current = self.inners[self.root as usize];
         for _ in 0..(traversal_stack.len()) {
-            let index = traversal_stack.last().unwrap();
+            // should not panic unless more than one element is popped per iteration
+            let index = traversal_stack.last().expect("Traversal stack empty!");
             let child_addr = current.children[*index] as Addr;
 
             let child_exists = current.contains & (1 << index) != 0;
@@ -37,7 +39,7 @@ impl Contree {
 
                 // check if something exists at pos
                 let leaf = self.leaves[child_addr as usize];
-                let index = traversal_stack.last().unwrap();
+                let index = traversal_stack.last().expect("Traversal stack empty!");
                 let contains = leaf.contains & (1 << index) != 0;
 
                 let node_size = if contains {
@@ -47,6 +49,11 @@ impl Contree {
                 };
 
                 return FindResult {
+                    material: if contains {
+                        Some(leaf.children[*index])
+                    } else {
+                        None
+                    },
                     leaf_address: Some(child_addr),
                     traversal_stack,
                     node_size,
@@ -58,6 +65,7 @@ impl Contree {
                 current = self.inners[child_addr as usize];
             } else {
                 return FindResult {
+                    material: None,
                     leaf_address: None,
                     traversal_stack,
                     node_size: self.size >> ((parent_addrs.len() as u32 - 1) * 2),
@@ -101,12 +109,14 @@ mod tests {
     fn traverse_empty() {
         let contree = Contree::default();
         let FindResult {
+            material,
             leaf_address,
             traversal_stack,
             parent_addrs,
             node_size,
         } = contree.find(Vec3::new(5., 8., 9.), &[]);
 
+        assert!(material.is_none());
         assert!(leaf_address.is_none());
         assert_eq!(traversal_stack, &[5, 36, 3]);
         assert_eq!(parent_addrs.as_slice(), &[0]);
@@ -139,12 +149,14 @@ mod tests {
         };
 
         let FindResult {
+            material,
             leaf_address,
             traversal_stack,
             parent_addrs,
             node_size,
         } = contree.find(p, &[]);
 
+        assert_eq!(material, Some(10));
         assert_eq!(leaf_address, Some(0));
         assert_eq!(traversal_stack.as_slice(), &[0]);
         assert_eq!(parent_addrs.as_slice(), &[0]);
@@ -169,12 +181,14 @@ mod tests {
         let contree = create_contree(64, p);
 
         let FindResult {
+            material,
             leaf_address,
             traversal_stack,
             parent_addrs,
             node_size,
         } = contree.find(p, &[]);
 
+        assert_eq!(material, Some(10));
         assert_eq!(leaf_address, Some(0));
         assert_eq!(traversal_stack.as_slice(), &[0]);
         assert_eq!(parent_addrs.as_slice(), &[0, 1]);

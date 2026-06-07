@@ -18,7 +18,7 @@ impl Contree {
             self.center_offset = new_center;
             let old_root_new_index = to_base_64(morton_code(self.normalize(old_root_coords)))
                 .last()
-                .unwrap();
+                .expect("Morton code should not be empty!");
 
             // set current node as child of new node
             self.inners[new_root as usize].children[old_root_new_index] = self.root;
@@ -44,7 +44,9 @@ impl Contree {
                     .get_mut(leaf_addr as usize)
                     .expect("Leaf node does not exist!");
 
-                let child_index = *traversal_stack.last().unwrap();
+                let child_index = *traversal_stack
+                    .last()
+                    .expect("Traversal stack should not be empty!");
                 leaf.children[child_index] = material;
                 leaf.contains |= 1 << child_index;
                 self.binding.write_leaf(leaf_addr, &[*leaf]);
@@ -64,6 +66,7 @@ impl Contree {
             }
         }
         FindResult {
+            material: Some(material),
             leaf_address,
             traversal_stack,
             parent_addrs,

@@ -94,7 +94,7 @@ impl Contree {
                 .into_iter()
                 .filter(|x| x.is_normal())
                 .reduce(f32::min)
-                .unwrap();
+                .expect("All movement distance options are inf or NaN!");
 
             p += move_distance * norm_dir; // jump to boundary
             // p[move_axis] = pspace_boundary[move_axis]; // snap to boundary to reduce FPE
