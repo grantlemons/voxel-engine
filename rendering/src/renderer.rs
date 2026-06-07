@@ -86,7 +86,7 @@ pub struct Renderer {
     state: State,
     pub window: Arc<winit::window::Window>,
     pub camera: Camera,
-    pub contree: Contree<ChannelBinding>,
+    pub contree: Contree,
     pub buffers: Arc<Buffers>,
     buffer_reader: flume::Receiver<BufferWriteCommand>,
 }
@@ -286,11 +286,11 @@ impl Renderer {
         Ok(Self {
             window,
             buffers: state.buffers.clone(),
-            contree: Contree::<ChannelBinding>::new(ChannelBinding {
+            contree: Contree::new(Box::new(ChannelBinding {
                 writer: buffer_writer,
                 inner_buffer: state.buffers.inner_nodes.clone(),
                 leaf_buffer: state.buffers.leaf_nodes.clone(),
-            }),
+            })),
             state,
             camera: Default::default(),
             buffer_reader,

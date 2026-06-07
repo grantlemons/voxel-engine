@@ -51,8 +51,8 @@ pub struct FindResult {
     node_size: u32,
 }
 
-#[derive(Debug, Clone)]
-pub struct Contree<T: GPUBindable> {
+#[derive(Debug)]
+pub struct Contree {
     pub center_offset: Vec3,
     pub root: Addr,
     /// Distance from face to face
@@ -61,10 +61,33 @@ pub struct Contree<T: GPUBindable> {
     leaves: Vec<ContreeLeaf>,
     inner_tombstones: Vec<Addr>,
     leaf_tombstones: Vec<Addr>,
-    binding: T,
+    binding: Box<dyn GPUBindable>,
 }
 
-impl<T: GPUBindable> std::fmt::Display for Contree<T> {
+impl Default for Contree {
+    fn default() -> Self {
+        Self::new(Box::new(DummyBinding))
+    }
+}
+
+impl Contree {
+    pub fn new(binding: Box<dyn GPUBindable>) -> Self {
+        let mut new = Self {
+            center_offset: Default::default(),
+            root: Default::default(),
+            size: 16,
+            inners: Default::default(),
+            leaves: Default::default(),
+            inner_tombstones: Default::default(),
+            leaf_tombstones: Default::default(),
+            binding,
+        };
+        new.root = new.create_root_node();
+        new
+    }
+}
+
+impl std::fmt::Display for Contree {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,

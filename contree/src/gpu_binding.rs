@@ -1,7 +1,7 @@
 use super::{Addr, ContreeInner};
 use crate::ContreeLeaf;
 
-pub trait GPUBindable: std::fmt::Debug + Clone {
+pub trait GPUBindable: std::fmt::Debug {
     fn write_inner(&self, addr: Addr, data: &[ContreeInner]);
     fn write_leaf(&self, addr: Addr, data: &[ContreeLeaf]);
 }

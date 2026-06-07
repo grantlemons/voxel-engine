@@ -1,7 +1,5 @@
 use glam::{UVec3, Vec3};
 
-use crate::gpu_binding::GPUBindable;
-
 use super::Contree;
 
 pub fn morton_code(norm_p: glam::UVec3) -> u64 {
@@ -60,7 +58,7 @@ pub fn round_in_dir(x: Vec3, dir: Vec3) -> Vec3 {
     Vec3::from_slice(res.as_slice())
 }
 
-impl<T: GPUBindable> Contree<T> {
+impl Contree {
     pub(super) fn normalize(&self, p: Vec3) -> UVec3 {
         (p - self.center_offset + (self.size as f32 / 2.))
             .round()
@@ -82,8 +80,6 @@ impl<T: GPUBindable> Contree<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::gpu_binding::DummyBinding;
-
     use super::*;
     use glam::UVec3;
 
@@ -119,7 +115,7 @@ mod tests {
 
     #[test]
     fn contains_skews_negative() {
-        let contree = Contree::<DummyBinding>::default();
+        let contree = Contree::default();
 
         assert!(contree.in_bounds(Vec3::splat(-8.)));
         assert!(!contree.in_bounds(Vec3::splat(8.)));

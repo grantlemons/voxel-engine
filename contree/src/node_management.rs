@@ -1,5 +1,3 @@
-use crate::gpu_binding::GPUBindable;
-
 use super::{Addr, ChildIndex, Contree, ContreeInner, ContreeLeaf};
 
 bitflags::bitflags! {
@@ -11,41 +9,7 @@ bitflags::bitflags! {
     }
 }
 
-impl<T: GPUBindable + Default> Default for Contree<T> {
-    fn default() -> Self {
-        let mut new = Self {
-            center_offset: Default::default(),
-            root: Default::default(),
-            size: 16,
-            inners: Default::default(),
-            leaves: Default::default(),
-            inner_tombstones: Default::default(),
-            leaf_tombstones: Default::default(),
-            binding: Default::default(),
-        };
-        new.root = new.create_root_node();
-        new
-    }
-}
-
-impl<T: GPUBindable> Contree<T> {
-    pub fn new(binding: T) -> Self {
-        let mut new = Self {
-            center_offset: Default::default(),
-            root: Default::default(),
-            size: 16,
-            inners: Default::default(),
-            leaves: Default::default(),
-            inner_tombstones: Default::default(),
-            leaf_tombstones: Default::default(),
-            binding,
-        };
-        new.root = new.create_root_node();
-        new
-    }
-}
-
-impl<T: GPUBindable> Contree<T> {
+impl Contree {
     pub(super) fn create_root_node(&mut self) -> Addr {
         let new_node = ContreeInner {
             contains: 0,

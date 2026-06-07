@@ -1,10 +1,8 @@
 use glam::Vec3;
 
-use crate::gpu_binding::GPUBindable;
-
 use super::{Addr, ChildIndex, Contree, FindResult, util::*};
 
-impl<T: GPUBindable> Contree<T> {
+impl Contree {
     /// Grow upward until the position is in bounds
     fn grow_to_accomodate(&mut self, pos: Vec3) {
         while !self.in_bounds(pos) {
@@ -94,9 +92,9 @@ impl<T: GPUBindable> Contree<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ContreeInner, gpu_binding::DummyBinding};
+    use crate::ContreeInner;
 
-    fn create_contree(size: u32, p: Vec3) -> Contree<DummyBinding> {
+    fn create_contree(size: u32, p: Vec3) -> Contree {
         assert!(size > 4, "The root node cannot be a leaf!");
         let mut contree = Contree {
             size,
@@ -108,7 +106,7 @@ mod tests {
     #[test]
     fn insert_many_no_grow() {
         let p = Vec3::new(0., 0., 0.);
-        let mut contree = Contree::<DummyBinding> {
+        let mut contree = Contree {
             root: 0,
             size: 4_u32.pow(3),
             inners: vec![ContreeInner {
