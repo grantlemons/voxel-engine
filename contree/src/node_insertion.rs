@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use super::{Addr, ChildIndex, Contree, FindResult, util::*};
+use super::{Addr, ChildIndex, Contree, finding::FindResult, util::*};
 
 impl Contree {
     /// Grow upward until the position is in bounds

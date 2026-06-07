@@ -1,6 +1,15 @@
 use glam::Vec3;
 
-use super::{Addr, ChildIndex, Contree, FindResult, util::*};
+use super::{Addr, ChildIndex, Contree, util::*};
+
+#[derive(Debug)]
+pub struct FindResult {
+    pub leaf_address: Option<Addr>,
+    pub traversal_stack: Vec<ChildIndex>,
+    pub parent_addrs: Vec<Addr>,
+    /// Distance from face to face
+    pub node_size: u32,
+}
 
 impl Contree {
     pub fn find(&self, pos: Vec3, given_parent_addrs: &[Addr]) -> FindResult {

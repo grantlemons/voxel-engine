@@ -8,6 +8,7 @@ mod raycasting;
 mod util;
 
 use glam::Vec3;
+
 pub use gpu_binding::*;
 
 // 80 bytes
@@ -40,16 +41,8 @@ pub struct Material {
 type ChildIndex = usize;
 
 /// Address in terms of data type, not bytes
+/// Byte address = Addr * sizeof(node)
 pub type Addr = u32;
-
-#[derive(Debug)]
-pub struct FindResult {
-    leaf_address: Option<Addr>,
-    traversal_stack: Vec<ChildIndex>,
-    parent_addrs: Vec<Addr>,
-    /// Distance from face to face
-    node_size: u32,
-}
 
 #[derive(Debug)]
 pub struct Contree {

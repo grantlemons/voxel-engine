@@ -1,4 +1,4 @@
-use super::{Addr, Contree, FindResult, util::*};
+use super::{Addr, Contree, finding::FindResult, util::*};
 use glam::Vec3;
 
 impl Contree {
@@ -88,7 +88,13 @@ impl Contree {
             let max_t = (pspace_boundary - p) / norm_dir;
 
             // Minimum element of max_t, ignoring inf, -inf, and NaN values
-            let move_distance = max_t.abs().to_array().into_iter().reduce(f32::min).unwrap();
+            let move_distance = max_t
+                .abs()
+                .to_array()
+                .into_iter()
+                .filter(|x| x.is_normal())
+                .reduce(f32::min)
+                .unwrap();
 
             p += move_distance * norm_dir; // jump to boundary
             // p[move_axis] = pspace_boundary[move_axis]; // snap to boundary to reduce FPE
