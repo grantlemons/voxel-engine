@@ -40,7 +40,7 @@ pub struct Material {
 type ChildIndex = usize;
 
 /// Address in terms of data type, not bytes
-type Addr = u32;
+pub type Addr = u32;
 
 #[derive(Debug)]
 pub struct FindResult {

@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::contree::gpu_binding::GPUBindable;
+use crate::gpu_binding::GPUBindable;
 
 use super::{Addr, ChildIndex, Contree, FindResult, util::*};
 
@@ -94,7 +94,7 @@ impl<T: GPUBindable> Contree<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contree::{ContreeInner, gpu_binding::DummyBinding};
+    use crate::{ContreeInner, gpu_binding::DummyBinding};
 
     fn create_contree(size: u32, p: Vec3) -> Contree<DummyBinding> {
         assert!(size > 4, "The root node cannot be a leaf!");

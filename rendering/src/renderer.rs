@@ -1,8 +1,35 @@
 use std::sync::Arc;
 
+use bytemuck::cast_slice;
+use flume::Sender;
 use glam::{Mat4, Vec3, Vec4Swizzles, vec4};
 
-use crate::contree::{ChannelBinding, Contree};
+use contree::{Addr, Contree, ContreeInner, ContreeLeaf, GPUBindable};
+
+#[derive(Debug, Clone)]
+pub struct ChannelBinding {
+    pub writer: Sender<BufferWriteCommand>,
+    pub inner_buffer: wgpu::Buffer,
+    pub leaf_buffer: wgpu::Buffer,
+}
+
+impl GPUBindable for ChannelBinding {
+    fn write_inner(&self, addr: Addr, data: &[ContreeInner]) {
+        let _ = self.writer.send(BufferWriteCommand {
+            target_buffer: self.inner_buffer.clone(),
+            offset: addr as u64 * size_of::<ContreeInner>() as u64,
+            new_data: cast_slice(data).to_vec(),
+        });
+    }
+
+    fn write_leaf(&self, addr: Addr, data: &[ContreeLeaf]) {
+        let _ = self.writer.send(BufferWriteCommand {
+            target_buffer: self.inner_buffer.clone(),
+            offset: addr as u64 * size_of::<ContreeLeaf>() as u64,
+            new_data: cast_slice(data).to_vec(),
+        });
+    }
+}
 
 #[derive(Debug)]
 pub struct BufferWriteCommand {

@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::contree::gpu_binding::GPUBindable;
+use crate::gpu_binding::GPUBindable;
 
 use super::{Addr, ChildIndex, Contree, FindResult, util::*};
 
@@ -65,7 +65,7 @@ impl<T: GPUBindable> Contree<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::contree::{ContreeInner, ContreeLeaf, gpu_binding::DummyBinding};
+    use crate::{ContreeInner, ContreeLeaf, gpu_binding::DummyBinding};
 
     use super::*;
 

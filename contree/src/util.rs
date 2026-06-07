@@ -1,6 +1,6 @@
 use glam::{UVec3, Vec3};
 
-use crate::contree::gpu_binding::GPUBindable;
+use crate::gpu_binding::GPUBindable;
 
 use super::Contree;
 
@@ -82,7 +82,7 @@ impl<T: GPUBindable> Contree<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::contree::gpu_binding::DummyBinding;
+    use crate::gpu_binding::DummyBinding;
 
     use super::*;
     use glam::UVec3;

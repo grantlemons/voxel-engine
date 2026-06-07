@@ -1,4 +1,4 @@
-use crate::contree::gpu_binding::GPUBindable;
+use crate::gpu_binding::GPUBindable;
 
 use super::{Addr, ChildIndex, Contree, ContreeInner, ContreeLeaf};
 
