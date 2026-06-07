@@ -1,5 +1,3 @@
-# Voxel Engine
-
 ## About
 
 I wanted to do something challenging without looking at existing engines.
