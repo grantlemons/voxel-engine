@@ -23,6 +23,7 @@ var<push_constant> contree: ContreeData;
 
 @vertex
 fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
+    // create a big triangle that covers the whole screen
     let pos = array(
         vec2f(-1.0, 3.0),
         vec2f(3.0, -1.0),
@@ -42,10 +43,10 @@ fn fs_main(@builtin(position) in: vec4f) -> @location(0) vec4f {
     let pix = vec2f(in.x, size.y - in.y);
 
     // distance between the ray origin and screen based on fov
-    let screen_dist = (size.x/2) / tan(radians(camera.fov / 2));
+    let screen_dist = (size.x / 2) / tan(radians(camera.fov / 2));
 
     // direction vector to screen pixel from origin
-    let pixel_dir = normalize(vec3f(pix.x - (size.x/2.), pix.y - (size.y/2.), screen_dist));
+    let pixel_dir = normalize(vec3f(pix.x - (size.x / 2.), pix.y - (size.y / 2.), screen_dist));
 
     let rot_mat = mat3x3f(camera.rotation_matrix[0].xyz, camera.rotation_matrix[1].xyz, camera.rotation_matrix[2].xyz);
     let dir = rot_mat * pixel_dir;
@@ -165,25 +166,4 @@ fn raymarch(start_p: vec3f, start_dir: vec3f) -> vec3f {
     }
 
     return color;
-}
-
-fn rotation_matrix(rad_rot: vec3f) -> mat3x3f {
-    // intrinsic
-    let Rz = mat3x3f(
-        vec3f(cos(rad_rot.z), sin(rad_rot.z), 0.),
-        vec3f(-sin(rad_rot.z), cos(rad_rot.z), 0.),
-        vec3f(0., 0., 1.),
-    );
-    let Ry = mat3x3f(
-        vec3f(cos(rad_rot.y), 0., -sin(rad_rot.y)),
-        vec3f(0., 1., 0.),
-        vec3f(sin(rad_rot.y), 0., cos(rad_rot.y)),
-    );
-    let Rx = mat3x3f(
-        vec3f(1., 0., 0.),
-        vec3f(0., cos(rad_rot.x), sin(rad_rot.x)),
-        vec3f(0., -sin(rad_rot.x), cos(rad_rot.x)),
-    );
-
-    return Rz * Ry * Rx;
 }
