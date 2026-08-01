@@ -21,11 +21,12 @@ impl Contree {
                 .peekable();
 
         let mut parent_addrs = given_parent_addrs.to_vec();
-        let mut current = if let Some(root) = self.root {
+        let mut current = if let Some(root) = self.root
+            && traversal_iter.peek().is_some()
+        {
             parent_addrs.push(root);
             self.inners[root as usize]
         } else {
-            dbg!("No root!");
             return FindResult {
                 material: None,
                 leaf_address: None,

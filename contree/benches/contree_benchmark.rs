@@ -15,7 +15,7 @@ fn create_contree(size: u32, p: Vec3) -> Contree {
 
 fn finding_benchmark(c: &mut Criterion) {
     let p = Vec3::ZERO;
-    let mut contree = create_contree(2u32.pow(24), Vec3::splat(5.));
+    let mut contree = create_contree(4u32.pow(8), Vec3::splat(5.));
 
     c.bench_function("find empty", |b| {
         b.iter(|| contree.find(black_box(p), black_box(&[])))
