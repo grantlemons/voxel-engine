@@ -133,6 +133,36 @@ mod tests {
     }
 
     #[test]
+    fn insert_impacts_parent_contains() {
+        let p = Vec3::ZERO;
+        let contree = create_contree(16, p);
+
+        let FindResult { parent_addrs, .. } = contree.find(p, &[]);
+        let parent_index = *parent_addrs.last().unwrap() as usize;
+        let bitflag = contree.inners[parent_index].contains;
+        let leaf_index: ChildIndex = to_base_64(morton_code(contree.normalize(p)))
+            .last()
+            .unwrap();
+
+        assert!((bitflag >> leaf_index & 1) == 1);
+    }
+
+    #[test]
+    fn insert_impacts_parent_leaf() {
+        let p = Vec3::ZERO;
+        let contree = create_contree(16, p);
+
+        let FindResult { parent_addrs, .. } = contree.find(p, &[]);
+        let parent_index = *parent_addrs.last().unwrap() as usize;
+        let bitflag = contree.inners[parent_index].leaf;
+        let leaf_index: ChildIndex = to_base_64(morton_code(contree.normalize(p)))
+            .last()
+            .unwrap();
+
+        assert!((bitflag >> leaf_index & 1) == 1);
+    }
+
+    #[test]
     fn grow_positive() {
         let mut contree = create_contree(16, Vec3::ZERO);
 

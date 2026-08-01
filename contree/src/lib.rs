@@ -15,27 +15,27 @@ pub use gpu_binding::*;
 #[repr(C, align(4))]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 pub struct ContreeLeaf {
-    contains: u64,
-    light: u64,
-    children: [u8; 64],
+    pub contains: u64,
+    pub light: u64,
+    pub children: [u8; 64],
 }
 
 // 280 bytes
 #[repr(C, align(4))]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 pub struct ContreeInner {
-    contains: u64,
-    leaf: u64,
-    light: u64,
-    children: [Addr; 64],
+    pub contains: u64,
+    pub leaf: u64,
+    pub light: u64,
+    pub children: [Addr; 64],
 }
 
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Material {
-    color: [f32; 4],
-    reflectivity: f32,
-    padding: [u8; 12],
+    pub color: [f32; 4],
+    pub reflectivity: f32,
+    pub padding: [u8; 12],
 }
 
 type ChildIndex = usize;
@@ -50,11 +50,11 @@ pub struct Contree {
     pub root: Addr,
     /// Distance from face to face
     pub size: u32,
-    inners: Vec<ContreeInner>,
-    leaves: Vec<ContreeLeaf>,
-    inner_tombstones: Vec<Addr>,
-    leaf_tombstones: Vec<Addr>,
-    binding: Box<dyn GPUBindable>,
+    pub inners: Vec<ContreeInner>,
+    pub leaves: Vec<ContreeLeaf>,
+    pub inner_tombstones: Vec<Addr>,
+    pub leaf_tombstones: Vec<Addr>,
+    pub binding: Box<dyn GPUBindable>,
 }
 
 impl Default for Contree {
