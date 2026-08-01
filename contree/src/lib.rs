@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use serde::{Deserialize, Serialize};
 
 mod finding;
 mod gpu_binding;
@@ -13,25 +14,27 @@ pub use gpu_binding::*;
 
 // 80 bytes
 #[repr(C, align(4))]
-#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable, Serialize, Deserialize)]
 pub struct ContreeLeaf {
     pub contains: u64,
     pub light: u64,
+    #[serde(with = "serde_arrays")]
     pub children: [u8; 64],
 }
 
 // 280 bytes
 #[repr(C, align(4))]
-#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable, Serialize, Deserialize)]
 pub struct ContreeInner {
     pub contains: u64,
     pub leaf: u64,
     pub light: u64,
+    #[serde(with = "serde_arrays")]
     pub children: [Addr; 64],
 }
 
 #[repr(C, align(16))]
-#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Serialize, Deserialize)]
 pub struct Material {
     pub color: [f32; 4],
     pub reflectivity: f32,

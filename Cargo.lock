@@ -429,6 +429,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde-binary",
+ "serde_arrays",
  "thiserror 2.0.18",
  "tracing",
 ]
@@ -1771,6 +1772,15 @@ dependencies = [
  "binary-stream",
  "serde",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "serde_arrays"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94a16b99c5ea4fe3daccd14853ad260ec00ea043b2708d1fd1da3106dcd8d9df"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
