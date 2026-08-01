@@ -33,7 +33,7 @@ impl Contree {
 
     pub(super) fn create_inner_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
         let addr = self.create_root_node();
-        self.inners[parent as usize].children[index] = addr;
+        self.inners[parent as usize].children[index as usize] = addr;
         self.update_parent_bitflags(parent, index, TreeFlags::EXISTS);
         addr
     }
@@ -54,7 +54,7 @@ impl Contree {
                 (self.leaves.len() - 1) as Addr
             }
         };
-        self.inners[parent as usize].children[index] = addr;
+        self.inners[parent as usize].children[index as usize] = addr;
         self.update_parent_bitflags(parent, index, TreeFlags::EXISTS | TreeFlags::LEAF);
 
         self.binding.write_leaf(addr, &[new_node]);

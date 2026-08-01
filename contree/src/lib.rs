@@ -41,7 +41,7 @@ pub struct Material {
     pub padding: [u8; 12],
 }
 
-type ChildIndex = usize;
+type ChildIndex = u8;
 
 /// Address in terms of data type, not bytes
 /// Byte address = Addr * sizeof(node)
@@ -50,7 +50,7 @@ pub type Addr = u32;
 #[derive(Debug)]
 pub struct Contree {
     pub center_offset: Vec3,
-    pub root: Addr,
+    pub root: Option<Addr>,
     /// Distance from face to face
     pub size: u32,
     pub inners: Vec<ContreeInner>,
@@ -70,7 +70,7 @@ impl Contree {
     pub fn new(binding: Box<dyn GPUBindable>) -> Self {
         let mut new = Self {
             center_offset: Default::default(),
-            root: Default::default(),
+            root: None,
             size: 16,
             inners: Default::default(),
             leaves: Default::default(),
@@ -78,51 +78,54 @@ impl Contree {
             leaf_tombstones: Default::default(),
             binding,
         };
-        new.root = new.create_root_node();
+        new.root = Some(new.create_root_node());
         new
     }
 }
 
 impl std::fmt::Display for Contree {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "digraph {{
+        if let Some(root) = self.root {
+            let mut stack = vec![root];
+
+            writeln!(
+                f,
+                "digraph {{
 \tnewrank=true;
 \trankdir=LR;"
-        )?;
+            )?;
+            while let Some(addr) = stack.pop() {
+                let cur = self.inners[addr as usize];
+                for i in 0..64 {
+                    if (cur.contains & (0b1 << i)) != 0 {
+                        if (cur.leaf & (0b1 << i)) != 0 {
+                            writeln!(
+                                f,
+                                "\t{} -> \"leaf {}\" [label=<{}>]",
+                                addr, cur.children[i], i
+                            )?;
 
-        let mut stack = vec![self.root];
-
-        while let Some(addr) = stack.pop() {
-            let cur = self.inners[addr as usize];
-            for i in 0..64 {
-                if (cur.contains & (0b1 << i)) != 0 {
-                    if (cur.leaf & (0b1 << i)) != 0 {
-                        writeln!(
-                            f,
-                            "\t{} -> \"leaf {}\" [label=<{}>]",
-                            addr, cur.children[i], i
-                        )?;
-
-                        let leaf_addr = cur.children[i];
-                        for j in 0..64 {
-                            if (self.leaves[leaf_addr as usize].contains & (0b1 << j)) != 0 {
-                                writeln!(
-                                    f,
-                                    "\t\"leaf {}\" -> \"mat {}\" [label=<{}>]",
-                                    leaf_addr, self.leaves[leaf_addr as usize].children[j], j
-                                )?;
+                            let leaf_addr = cur.children[i];
+                            for j in 0..64 {
+                                if (self.leaves[leaf_addr as usize].contains & (0b1 << j)) != 0 {
+                                    writeln!(
+                                        f,
+                                        "\t\"leaf {}\" -> \"mat {}\" [label=<{}>]",
+                                        leaf_addr, self.leaves[leaf_addr as usize].children[j], j
+                                    )?;
+                                }
                             }
+                        } else {
+                            writeln!(f, "\t{} -> {} [label=<{}>]", addr, cur.children[i], i)?;
+                            stack.push(cur.children[i]);
                         }
-                    } else {
-                        writeln!(f, "\t{} -> {} [label=<{}>]", addr, cur.children[i], i)?;
-                        stack.push(cur.children[i]);
                     }
                 }
             }
-        }
 
-        writeln!(f, "}}")
+            writeln!(f, "}}")
+        } else {
+            writeln!(f, "Empty contree")
+        }
     }
 }

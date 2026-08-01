@@ -1,4 +1,8 @@
+use std::iter::FusedIterator;
+
 use glam::{UVec3, Vec3};
+
+use crate::ChildIndex;
 
 use super::Contree;
 
@@ -22,24 +26,23 @@ pub fn morton_code(norm_p: glam::UVec3) -> u64 {
     (interleave(norm_p.x) << 2) | (interleave(norm_p.y) << 1) | interleave(norm_p.z)
 }
 
-pub fn to_base_64(code: u64) -> impl Iterator<Item = usize> {
-    let mut n = code;
-    let mut first = true;
+const MAX_MORTON_INDEX: u8 = 8;
+pub fn morton_index(code: u64, index: u8) -> Option<ChildIndex> {
+    if index > MAX_MORTON_INDEX {
+        None
+    } else {
+        Some(((code >> (48 - 6 * index)) & 0b111111) as ChildIndex)
+    }
+}
+
+pub fn morton_iter(code: u64, height: u8) -> impl FusedIterator<Item = ChildIndex> {
+    let mut i = MAX_MORTON_INDEX + 1 - height;
     std::iter::from_fn(move || {
-        if n == 0 {
-            if first {
-                first = false;
-                Some(0usize)
-            } else {
-                None
-            }
-        } else {
-            first = false;
-            let res = Some((n as usize) & 0b111111);
-            n >>= 6usize;
-            res
-        }
+        let res = morton_index(code, i);
+        i += 1;
+        res
     })
+    .fuse()
 }
 
 pub fn round_in_dir(x: Vec3, dir: Vec3) -> Vec3 {
@@ -92,9 +95,9 @@ mod tests {
     #[test]
     fn morton_code_zero() {
         let code = morton_code(UVec3::new(0, 0, 0));
-        let index = to_base_64(code).collect::<Vec<_>>();
+        let index = morton_iter(code, 3).collect::<Vec<_>>();
         assert_eq!(code, 0);
-        assert_eq!(index, &[0]);
+        assert_eq!(index, &[0, 0, 0]);
     }
 
     #[test]
