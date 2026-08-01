@@ -1,8 +1,35 @@
 use std::sync::Arc;
 
+use bytemuck::cast_slice;
+use flume::Sender;
 use glam::{Mat4, Vec3, Vec4Swizzles, vec4};
 
-use crate::contree::Contree;
+use contree::{Addr, Contree, ContreeInner, ContreeLeaf, GPUBindable};
+
+#[derive(Debug, Clone)]
+pub struct ChannelBinding {
+    pub writer: Sender<BufferWriteCommand>,
+    pub inner_buffer: wgpu::Buffer,
+    pub leaf_buffer: wgpu::Buffer,
+}
+
+impl GPUBindable for ChannelBinding {
+    fn write_inner(&self, addr: Addr, data: &[ContreeInner]) {
+        let _ = self.writer.send(BufferWriteCommand {
+            target_buffer: self.inner_buffer.clone(),
+            offset: addr as u64 * size_of::<ContreeInner>() as u64,
+            new_data: cast_slice(data).to_vec(),
+        });
+    }
+
+    fn write_leaf(&self, addr: Addr, data: &[ContreeLeaf]) {
+        let _ = self.writer.send(BufferWriteCommand {
+            target_buffer: self.inner_buffer.clone(),
+            offset: addr as u64 * size_of::<ContreeLeaf>() as u64,
+            new_data: cast_slice(data).to_vec(),
+        });
+    }
+}
 
 #[derive(Debug)]
 pub struct BufferWriteCommand {
@@ -61,14 +88,13 @@ pub struct Renderer {
     pub camera: Camera,
     pub contree: Contree,
     pub buffers: Arc<Buffers>,
-    pub buffer_writer: flume::Sender<BufferWriteCommand>,
     buffer_reader: flume::Receiver<BufferWriteCommand>,
 }
 
 #[derive(Debug)]
 pub struct Buffers {
-    pub voxels: wgpu::Buffer,
-    pub lights: wgpu::Buffer,
+    pub inner_nodes: wgpu::Buffer,
+    pub leaf_nodes: wgpu::Buffer,
 }
 
 #[derive(Debug)]
@@ -164,15 +190,15 @@ impl State {
             ],
         });
 
-        let voxels = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Voxel List"),
+        let inner_nodes = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Inner Node Arena"),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             size: device.limits().max_storage_buffer_binding_size as u64,
             mapped_at_creation: false,
         });
 
-        let lights = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Light List"),
+        let leaf_nodes = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Leaf Node Arena"),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             size: device.limits().max_storage_buffer_binding_size as u64,
             mapped_at_creation: false,
@@ -185,7 +211,7 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &voxels,
+                        buffer: &inner_nodes,
                         offset: 0,
                         size: None,
                     }),
@@ -193,7 +219,7 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &lights,
+                        buffer: &leaf_nodes,
                         offset: 0,
                         size: None,
                     }),
@@ -245,7 +271,10 @@ impl State {
             config,
             pipeline,
             bind_group,
-            buffers: Arc::new(Buffers { voxels, lights }),
+            buffers: Arc::new(Buffers {
+                inner_nodes,
+                leaf_nodes,
+            }),
         })
     }
 }
@@ -257,10 +286,13 @@ impl Renderer {
         Ok(Self {
             window,
             buffers: state.buffers.clone(),
+            contree: Contree::new(Box::new(ChannelBinding {
+                writer: buffer_writer,
+                inner_buffer: state.buffers.inner_nodes.clone(),
+                leaf_buffer: state.buffers.leaf_nodes.clone(),
+            })),
             state,
             camera: Default::default(),
-            contree: Default::default(),
-            buffer_writer,
             buffer_reader,
         })
     }

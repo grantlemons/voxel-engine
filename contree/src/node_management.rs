@@ -9,23 +9,6 @@ bitflags::bitflags! {
     }
 }
 
-impl Default for Contree {
-    fn default() -> Self {
-        let mut new = Self {
-            center_offset: Default::default(),
-            root: Default::default(),
-            size: 16,
-            inners: Default::default(),
-            leaves: Default::default(),
-            inner_tombstones: Default::default(),
-            leaf_tombstones: Default::default(),
-            gpu: Default::default(),
-        };
-        new.root = new.create_root_node();
-        new
-    }
-}
-
 impl Contree {
     pub(super) fn create_root_node(&mut self) -> Addr {
         let new_node = ContreeInner {
@@ -44,13 +27,13 @@ impl Contree {
                 (self.inners.len() - 1) as Addr
             }
         };
-        self.gpu.write_inner(addr, &[new_node]);
+        self.binding.write_inner(addr, &[new_node]);
         addr
     }
 
     pub(super) fn create_inner_node(&mut self, parent: Addr, index: ChildIndex) -> Addr {
         let addr = self.create_root_node();
-        self.inners[parent as usize].children[index] = addr;
+        self.inners[parent as usize].children[index as usize] = addr;
         self.update_parent_bitflags(parent, index, TreeFlags::EXISTS);
         addr
     }
@@ -71,10 +54,10 @@ impl Contree {
                 (self.leaves.len() - 1) as Addr
             }
         };
-        self.inners[parent as usize].children[index] = addr;
+        self.inners[parent as usize].children[index as usize] = addr;
         self.update_parent_bitflags(parent, index, TreeFlags::EXISTS | TreeFlags::LEAF);
 
-        self.gpu.write_leaf(addr, &[new_node]);
+        self.binding.write_leaf(addr, &[new_node]);
         addr
     }
 
@@ -84,6 +67,6 @@ impl Contree {
         parent_node.leaf |= (flags.contains(TreeFlags::LEAF) as u64) << child;
         parent_node.light |= (flags.contains(TreeFlags::LIGHT) as u64) << child;
 
-        self.gpu.write_inner(parent, &[*parent_node]);
+        self.binding.write_inner(parent, &[*parent_node]);
     }
 }

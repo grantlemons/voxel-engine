@@ -1,4 +1,4 @@
-use voxel_engine::viewer::App;
+use rendering::viewer::App;
 
 fn main() {
     let mut app = App::default();

@@ -1,4 +1,4 @@
-use super::{Addr, Contree, FindResult, util::*};
+use super::{Addr, Contree, finding::FindResult, util::*};
 use glam::Vec3;
 
 impl Contree {
@@ -60,7 +60,7 @@ impl Contree {
         while self.in_bounds(find_p) && i < 50 {
             let FindResult {
                 leaf_address,
-                traversal_stack,
+                mut traversal_iter,
                 node_size,
                 parent_addrs,
                 ..
@@ -68,9 +68,9 @@ impl Contree {
 
             // break if hit solid
             if let Some(laddr) = leaf_address
-                && let Some(&cidx) = traversal_stack.last()
+                && let Some(cidx) = traversal_iter.next()
                 && self.leaves[laddr as usize].contains & (0b1 << cidx) != 0
-                && self.leaves[laddr as usize].children[cidx] != 0
+                && self.leaves[laddr as usize].children[cidx as usize] != 0
             {
                 return Some(p);
             }
@@ -88,11 +88,16 @@ impl Contree {
             let max_t = (pspace_boundary - p) / norm_dir;
 
             // Minimum element of max_t, ignoring inf, -inf, and NaN values
-            let move_distance = max_t.abs().to_array().into_iter().reduce(f32::min).unwrap();
+            let move_distance = max_t
+                .abs()
+                .to_array()
+                .into_iter()
+                .filter(|x| x.is_normal())
+                .reduce(f32::min)
+                .expect("All movement distance options are inf or NaN!");
 
             p += move_distance * norm_dir; // jump to boundary
             // p[move_axis] = pspace_boundary[move_axis]; // snap to boundary to reduce FPE
-            dbg!(p);
 
             find_p = p + (dir_sign * 0.00001);
             i += 1;
@@ -103,7 +108,6 @@ impl Contree {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     fn create_contree(size: u32, p: Vec3) -> Contree {

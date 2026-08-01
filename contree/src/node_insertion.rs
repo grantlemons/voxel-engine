@@ -1,11 +1,20 @@
+use std::iter::FusedIterator;
+
 use glam::Vec3;
 
-use super::{Addr, ChildIndex, Contree, FindResult, util::*};
+use super::{Addr, ChildIndex, Contree, finding::FindResult, util::*};
 
 impl Contree {
     /// Grow upward until the position is in bounds
     fn grow_to_accomodate(&mut self, pos: Vec3) {
-        while !self.in_bounds(pos) {
+        if self.root.is_none() {
+            self.root = Some(self.create_root_node());
+            self.center_offset = pos;
+        }
+
+        while let Some(root) = self.root
+            && !self.in_bounds(pos)
+        {
             let new_root = self.create_root_node();
 
             // TODO: Find a better way to grow
@@ -16,16 +25,19 @@ impl Contree {
             let old_root_coords = self.center_offset;
             self.size *= 4;
             self.center_offset = new_center;
-            let old_root_new_index = to_base_64(morton_code(self.normalize(old_root_coords)))
-                .last()
-                .unwrap();
+            let old_root_new_index = morton_iter(
+                morton_code(self.normalize(old_root_coords)),
+                self.size.ilog(4) as u8,
+            )
+            .last()
+            .expect("Morton code should not be empty!");
 
             // set current node as child of new node
-            self.inners[new_root as usize].children[old_root_new_index] = self.root;
-            self.gpu
+            self.inners[new_root as usize].children[old_root_new_index as usize] = root;
+            self.binding
                 .write_inner(new_root, &[self.inners[new_root as usize]]);
 
-            self.root = new_root;
+            self.root = Some(new_root);
         }
     }
     pub fn insert(&mut self, pos: Vec3, material: u8) -> FindResult {
@@ -33,10 +45,11 @@ impl Contree {
 
         let FindResult {
             leaf_address,
-            traversal_stack,
+            mut traversal_iter,
             mut parent_addrs,
             ..
         } = self.find(pos, &[]);
+
         match leaf_address {
             Some(leaf_addr) => {
                 let leaf = self
@@ -44,28 +57,31 @@ impl Contree {
                     .get_mut(leaf_addr as usize)
                     .expect("Leaf node does not exist!");
 
-                let child_index = *traversal_stack.last().unwrap();
-                leaf.children[child_index] = material;
+                let child_index = traversal_iter
+                    .next()
+                    .expect("Traversal iter should not be empty!");
+                leaf.children[child_index as usize] = material;
                 leaf.contains |= 1 << child_index;
-                self.gpu.write_leaf(leaf_addr, &[*leaf]);
+                self.binding.write_leaf(leaf_addr, &[*leaf]);
             }
             None => {
                 let (leaf_addr, child_index) =
-                    self.add_parents(&traversal_stack, &mut parent_addrs);
+                    self.add_parents(&mut traversal_iter, &mut parent_addrs);
 
                 let leaf = self
                     .leaves
                     .get_mut(leaf_addr as usize)
                     .expect("Leaf node does not exist!");
 
-                leaf.children[child_index] = material;
+                leaf.children[child_index as usize] = material;
                 leaf.contains |= 1 << child_index;
-                self.gpu.write_leaf(leaf_addr, &[*leaf]);
+                self.binding.write_leaf(leaf_addr, &[*leaf]);
             }
         }
         FindResult {
+            material: Some(material),
             leaf_address,
-            traversal_stack,
+            traversal_iter, // this might need to be the prev traversal iter
             parent_addrs,
             node_size: 1,
         }
@@ -73,11 +89,17 @@ impl Contree {
 
     fn add_parents(
         &mut self,
-        traversal_stack: &[ChildIndex],
+        traversal_iter: &mut dyn FusedIterator<Item = ChildIndex>,
         parent_addrs: &mut Vec<Addr>,
     ) -> (Addr, ChildIndex) {
         let mut leaf_addr = 0;
-        for (i, child_index) in traversal_stack.iter().enumerate().rev() {
+        for (i, child_index) in traversal_iter
+            .collect::<Vec<_>>()
+            .iter()
+            .rev()
+            .enumerate() // this gives distance from end of iterator
+            .rev()
+        {
             let parent: Addr = *parent_addrs.last().expect("No root!");
             match i {
                 0 => return (leaf_addr, *child_index),
@@ -92,7 +114,7 @@ impl Contree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contree::ContreeInner;
+    use crate::ContreeInner;
 
     fn create_contree(size: u32, p: Vec3) -> Contree {
         assert!(size > 4, "The root node cannot be a leaf!");
@@ -107,7 +129,7 @@ mod tests {
     fn insert_many_no_grow() {
         let p = Vec3::new(0., 0., 0.);
         let mut contree = Contree {
-            root: 0,
+            root: Some(0),
             size: 4_u32.pow(3),
             inners: vec![ContreeInner {
                 contains: 0,
@@ -125,8 +147,44 @@ mod tests {
         contree.insert(Vec3::new(-10., 0., 0.), 5);
         contree.insert(Vec3::new(-10., -10., 0.), 6);
 
-        assert_eq!(contree.root, 0);
+        assert_eq!(contree.root, Some(0));
         assert_eq!(contree.size, 4_u32.pow(3));
+    }
+
+    #[test]
+    fn insert_impacts_parent_contains() {
+        let p = Vec3::ZERO;
+        let contree = create_contree(16, p);
+
+        let FindResult { parent_addrs, .. } = contree.find(p, &[]);
+        let parent_index = *parent_addrs.last().unwrap() as usize;
+        let bitflag = contree.inners[parent_index].contains;
+        let leaf_index: ChildIndex = morton_iter(
+            morton_code(contree.normalize(p)),
+            contree.size.ilog(4) as u8,
+        )
+        .next()
+        .unwrap();
+
+        assert!((bitflag >> leaf_index & 1) == 1);
+    }
+
+    #[test]
+    fn insert_impacts_parent_leaf() {
+        let p = Vec3::ZERO;
+        let contree = create_contree(16, p);
+
+        let FindResult { parent_addrs, .. } = contree.find(p, &[]);
+        let parent_index = *parent_addrs.last().unwrap() as usize;
+        let bitflag = contree.inners[parent_index].leaf;
+        let leaf_index: ChildIndex = morton_iter(
+            morton_code(contree.normalize(p)),
+            contree.size.ilog(4) as u8,
+        )
+        .next()
+        .unwrap();
+
+        assert!((bitflag >> leaf_index & 1) == 1);
     }
 
     #[test]
