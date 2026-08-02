@@ -1,13 +1,11 @@
-use std::iter::FusedIterator;
-
 use glam::Vec3;
 
-use super::{Addr, ChildIndex, Contree, util::*};
+use super::{Addr, Contree, util::*};
 
 pub struct FindResult {
     pub material: Option<u8>,
     pub leaf_address: Option<Addr>,
-    pub traversal_iter: Box<dyn FusedIterator<Item = ChildIndex>>,
+    pub traversal_state: (u64, u8),
     pub parent_addrs: Vec<Addr>,
     /// Distance from face to face
     pub node_size: u32,
@@ -15,31 +13,31 @@ pub struct FindResult {
 
 impl Contree {
     pub fn find(&self, pos: Vec3, given_parent_addrs: &[Addr]) -> FindResult {
-        let mut traversal_iter =
-            morton_iter(morton_code(self.normalize(pos)), self.size.ilog(4) as u8)
-                .skip(given_parent_addrs.len())
-                .peekable();
+        let code = morton_code(self.normalize(pos));
+        let mut next_morton_index = MAX_MORTON_INDEX + 1 - (self.size.ilog(4) as u8);
 
         let mut parent_addrs = given_parent_addrs.to_vec();
         let mut current = if let Some(root) = self.root
-            && traversal_iter.peek().is_some()
+            && morton_index(code, next_morton_index).is_some()
         {
-            parent_addrs.push(root);
-            self.inners[root as usize]
+            if parent_addrs.is_empty() {
+                parent_addrs.push(root);
+            }
+            self.inners[*parent_addrs.last().unwrap() as usize]
         } else {
             return FindResult {
                 material: None,
                 leaf_address: None,
-                traversal_iter: Box::new(traversal_iter),
+                traversal_state: (code, next_morton_index),
                 parent_addrs,
                 node_size: self.size,
             };
         };
 
-        loop {
+        while next_morton_index <= MAX_MORTON_INDEX {
             // should not panic unless more than one element is popped per iteration
-            let index = traversal_iter.peek().expect("Traversal iter empty!");
-            let child_addr = current.children[*index as usize] as Addr;
+            let index = morton_index(code, next_morton_index).expect("Traversal iter empty!");
+            let child_addr = current.children[index as usize] as Addr;
 
             let child_exists = (current.contains >> index) & 1 == 1;
             let child_leaf = (current.leaf >> index) & 1 == 1;
@@ -47,12 +45,12 @@ impl Contree {
             if child_exists && child_leaf {
                 // leaf node contains this coordinate
                 // this does not mean that something exists at this coordinate
-                traversal_iter.next();
+                next_morton_index += 1;
 
                 // check if something exists at pos
                 let leaf = self.leaves[child_addr as usize];
-                let index = traversal_iter.peek().expect("Traversal iter empty!");
-                let contains = leaf.contains & (1 << index) != 0;
+                let index = morton_index(code, next_morton_index).expect("Traversal iter empty!");
+                let contains = (leaf.contains >> index) & 1 == 1;
 
                 let node_size = if contains {
                     self.size >> ((parent_addrs.len() as u32 + 1) * 2)
@@ -62,29 +60,30 @@ impl Contree {
 
                 return FindResult {
                     material: if contains {
-                        Some(leaf.children[*index as usize])
+                        Some(leaf.children[index as usize])
                     } else {
                         None
                     },
                     leaf_address: Some(child_addr),
-                    traversal_iter: Box::new(traversal_iter),
+                    traversal_state: (code, next_morton_index),
                     node_size,
                     parent_addrs,
                 };
             } else if child_exists {
-                traversal_iter.next().expect("Traversal iter empty!");
                 parent_addrs.push(child_addr);
                 current = self.inners[child_addr as usize];
+                next_morton_index += 1;
             } else {
                 return FindResult {
                     material: None,
                     leaf_address: None,
-                    traversal_iter: Box::new(traversal_iter),
+                    traversal_state: (code, next_morton_index),
                     node_size: self.size >> ((parent_addrs.len() as u32 - 1) * 2),
                     parent_addrs,
                 };
             }
         }
+        unreachable!();
     }
 }
 
@@ -121,10 +120,16 @@ mod tests {
         let FindResult {
             material,
             leaf_address,
-            traversal_iter,
+            traversal_state: (code, mut next_morton_index),
             parent_addrs,
             node_size,
         } = contree.find(Vec3::new(5., 8., 9.), &[]);
+
+        let traversal_iter = std::iter::from_fn(|| {
+            let res = morton_index(code, next_morton_index);
+            next_morton_index += 1;
+            res
+        });
 
         assert!(material.is_none());
         assert!(leaf_address.is_none());
@@ -161,10 +166,16 @@ mod tests {
         let FindResult {
             material,
             leaf_address,
-            traversal_iter,
+            traversal_state: (code, mut next_morton_index),
             parent_addrs,
             node_size,
         } = contree.find(p, &[]);
+
+        let traversal_iter = std::iter::from_fn(|| {
+            let res = morton_index(code, next_morton_index);
+            next_morton_index += 1;
+            res
+        });
 
         assert_eq!(material, Some(10));
         assert_eq!(leaf_address, Some(0));
@@ -177,14 +188,15 @@ mod tests {
     fn root_as_parent() {
         let contree = create_contree(16, Vec3::splat(0.));
 
+        let (code, mut next_morton_index) = contree.find(Vec3::splat(-1.), &[]).traversal_state;
+        let traversal_iter = std::iter::from_fn(|| {
+            let res = morton_index(code, next_morton_index);
+            next_morton_index += 1;
+            res
+        });
+
         assert_eq!(contree.find(Vec3::splat(-1.), &[]).parent_addrs, &[0]);
-        assert_eq!(
-            contree
-                .find(Vec3::splat(-1.), &[])
-                .traversal_iter
-                .collect::<Vec<_>>(),
-            &[7, 63]
-        );
+        assert_eq!(traversal_iter.collect::<Vec<_>>(), &[7, 63]);
         assert_eq!(contree.find(Vec3::splat(32.), &[]).parent_addrs, &[0]);
         assert_eq!(
             contree.find(Vec3::splat(0.), &[]).parent_addrs.first(),
@@ -200,10 +212,16 @@ mod tests {
         let FindResult {
             material,
             leaf_address,
-            traversal_iter,
+            traversal_state: (code, mut next_morton_index),
             parent_addrs,
             node_size,
         } = contree.find(p, &[]);
+
+        let traversal_iter = std::iter::from_fn(|| {
+            let res = morton_index(code, next_morton_index);
+            next_morton_index += 1;
+            res
+        });
 
         assert_eq!(material, Some(10));
         assert_eq!(leaf_address, Some(0));

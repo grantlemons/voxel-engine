@@ -60,7 +60,7 @@ impl Contree {
         while self.in_bounds(find_p) && i < 50 {
             let FindResult {
                 leaf_address,
-                mut traversal_iter,
+                traversal_state: (code, next_morton_index),
                 node_size,
                 parent_addrs,
                 ..
@@ -68,7 +68,7 @@ impl Contree {
 
             // break if hit solid
             if let Some(laddr) = leaf_address
-                && let Some(cidx) = traversal_iter.next()
+                && let Some(cidx) = morton_index(code, next_morton_index)
                 && self.leaves[laddr as usize].contains & (0b1 << cidx) != 0
                 && self.leaves[laddr as usize].children[cidx as usize] != 0
             {
