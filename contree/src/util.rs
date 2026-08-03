@@ -1,27 +1,18 @@
-use glam::{UVec3, Vec3};
+use glam::{U64Vec3, UVec3, Vec3};
 
 use crate::ChildIndex;
 
 use super::Contree;
 
-pub fn morton_code(norm_p: glam::UVec3) -> u64 {
-    fn interleave(val: u32) -> u64 {
-        // Magic number bit-fuckery
-        let magic_numbers = [
-            0x1249249249249249,
-            0x10c30c30c30c30c3,
-            0x100f00f00f00f00f,
-            0x1f0000ff0000ff,
-            0x1f00000000ffff,
-        ];
-        // Only the first 21 bits are used
-        let mut x = (val & 0x1fffff) as u64;
-        for (i, mn) in magic_numbers.iter().enumerate().rev() {
-            x = (x | x << (1 << (i + 1))) & mn;
-        }
-        x
-    }
-    (interleave(norm_p.x) << 2) | (interleave(norm_p.y) << 1) | interleave(norm_p.z)
+pub fn morton_code(norm_p: UVec3) -> u64 {
+    let mut res = (norm_p & UVec3::splat(0x1fffff)).as_u64vec3();
+    res = (res | res << 32) & U64Vec3::splat(0x1f00000000ffff);
+    res = (res | res << 16) & U64Vec3::splat(0x1f0000ff0000ff);
+    res = (res | res << 8) & U64Vec3::splat(0x100f00f00f00f00f);
+    res = (res | res << 4) & U64Vec3::splat(0x10c30c30c30c30c3);
+    res = (res | res << 2) & U64Vec3::splat(0x1249249249249249);
+
+    (res.x << 2) | (res.y << 1) | res.z
 }
 
 pub const MAX_MORTON_INDEX: u8 = 8;
@@ -34,19 +25,9 @@ pub fn morton_index(code: u64, index: u8) -> Option<ChildIndex> {
 }
 
 pub fn round_in_dir(x: Vec3, dir: Vec3) -> Vec3 {
-    let res = x
-        .to_array()
-        .iter()
-        .zip(dir.to_array().iter())
-        .map(|(&x, &d)| {
-            if d < 0. {
-                (x - 0.5).ceil()
-            } else {
-                (x + 0.5).floor()
-            }
-        })
-        .collect::<Vec<f32>>();
-    Vec3::from_slice(res.as_slice())
+    let neg = Vec3::new(x.x - 0.5, x.y - 0.5, x.z - 0.5).ceil();
+    let pos = Vec3::new(x.x + 0.5, x.y + 0.5, x.z + 0.5).floor();
+    Vec3::select(dir.cmplt(Vec3::ZERO), neg, pos)
 }
 
 impl Contree {
