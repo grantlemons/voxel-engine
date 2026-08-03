@@ -39,15 +39,15 @@ impl Contree {
             self.root = Some(new_root);
         }
     }
-    pub fn insert(&mut self, pos: Vec3, material: u8) -> FindResult {
+    pub fn insert(&mut self, pos: Vec3, material: u8) -> Option<FindResult> {
         self.grow_to_accomodate(pos);
 
         let FindResult {
             leaf_address,
             traversal_state: traversal_iter,
-            mut parent_addrs,
+            mut parent_address,
             ..
-        } = self.find(pos, &[]);
+        } = self.find(pos)?;
 
         let (code, mut next_morton_index) = traversal_iter;
         match leaf_address {
@@ -66,7 +66,8 @@ impl Contree {
                 self.binding.write_leaf(leaf_addr, &[*leaf]);
             }
             None => {
-                let (leaf_addr, child_index) = self.add_parents(traversal_iter, &mut parent_addrs);
+                let (leaf_addr, child_index) =
+                    self.add_parents(traversal_iter, &mut parent_address);
                 next_morton_index = MAX_MORTON_INDEX + 1;
 
                 let leaf = self
@@ -79,30 +80,30 @@ impl Contree {
                 self.binding.write_leaf(leaf_addr, &[*leaf]);
             }
         }
-        FindResult {
+        Some(FindResult {
             material: Some(material),
             leaf_address,
+            parent_address,
             traversal_state: (code, next_morton_index), // this might need to be the prev traversal iter
-            parent_addrs,
             node_size: 1,
-        }
+        })
     }
 
     fn add_parents(
         &mut self,
         traversal_iter: (u64, u8),
-        parent_addrs: &mut Vec<Addr>,
+        parent_address: &mut Addr,
     ) -> (Addr, ChildIndex) {
         let mut leaf_addr = 0;
         for i in traversal_iter.1..=MAX_MORTON_INDEX {
-            let parent: Addr = *parent_addrs.last().expect("No root!");
+            let parent: Addr = *parent_address;
             let child_index = morton_index(traversal_iter.0, i).unwrap();
             match i {
                 MAX_MORTON_INDEX => return (leaf_addr, child_index),
                 x if x == MAX_MORTON_INDEX - 1 => {
                     leaf_addr = self.create_leaf_node(parent, child_index)
                 }
-                _ => parent_addrs.push(self.create_inner_node(parent, child_index)),
+                _ => *parent_address = self.create_inner_node(parent, child_index),
             }
         }
         unreachable!("Never reached bottom of traversal stack!")
@@ -154,9 +155,8 @@ mod tests {
         let p = Vec3::ZERO;
         let contree = create_contree(16, p);
 
-        let FindResult { parent_addrs, .. } = contree.find(p, &[]);
-        let parent_index = *parent_addrs.last().unwrap() as usize;
-        let bitflag = contree.inners[parent_index].contains;
+        let FindResult { parent_address, .. } = contree.find(p).unwrap();
+        let bitflag = contree.inners[parent_address as usize].leaf;
         let leaf_index: ChildIndex = morton_index(
             morton_code(contree.normalize(p)),
             MAX_MORTON_INDEX + 1 - contree.size.ilog(4) as u8,
@@ -171,9 +171,8 @@ mod tests {
         let p = Vec3::ZERO;
         let contree = create_contree(16, p);
 
-        let FindResult { parent_addrs, .. } = contree.find(p, &[]);
-        let parent_index = *parent_addrs.last().unwrap() as usize;
-        let bitflag = contree.inners[parent_index].leaf;
+        let FindResult { parent_address, .. } = contree.find(p).unwrap();
+        let bitflag = contree.inners[parent_address as usize].leaf;
         let leaf_index: ChildIndex = morton_index(
             morton_code(contree.normalize(p)),
             MAX_MORTON_INDEX + 1 - contree.size.ilog(4) as u8,

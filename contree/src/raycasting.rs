@@ -6,13 +6,10 @@ impl Contree {
     fn max_travel_distance(
         &self,
         leaf_address: Option<Addr>,
-        parent_addrs: &[Addr],
+        parent_address: Addr,
         node_size: u32,
     ) -> u32 {
-        if leaf_address.is_none()
-            && let Some(&parent_addr) = parent_addrs.last()
-            && self.inners[parent_addr as usize].contains == 0
-        {
+        if leaf_address.is_none() && self.inners[parent_address as usize].contains == 0 {
             node_size
         } else {
             node_size >> 2
@@ -60,11 +57,11 @@ impl Contree {
         while self.in_bounds(find_p) && i < 50 {
             let FindResult {
                 leaf_address,
+                parent_address,
                 traversal_state: (code, next_morton_index),
                 node_size,
-                parent_addrs,
                 ..
-            } = self.find(find_p, &[]);
+            } = self.find(find_p)?;
 
             // break if hit solid
             if let Some(laddr) = leaf_address
@@ -76,7 +73,7 @@ impl Contree {
             }
 
             let child_size =
-                self.max_travel_distance(leaf_address, &parent_addrs, node_size) as f32;
+                self.max_travel_distance(leaf_address, parent_address, node_size) as f32;
 
             let bspace_p = p + 0.5 - self.center_offset;
             let bspace_boundary =
