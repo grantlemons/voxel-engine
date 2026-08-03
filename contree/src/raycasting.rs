@@ -84,14 +84,8 @@ impl Contree {
             let norm_dir = dir.normalize();
             let max_t = (pspace_boundary - p) / norm_dir;
 
-            // Minimum element of max_t, ignoring inf, -inf, and NaN values
-            let move_distance = max_t
-                .abs()
-                .to_array()
-                .into_iter()
-                .filter(|x| x.is_normal())
-                .reduce(f32::min)
-                .expect("All movement distance options are inf or NaN!");
+            // WARN: May have platform-dependent behavior
+            let move_distance = max_t.abs().min_element();
 
             p += move_distance * norm_dir; // jump to boundary
             // p[move_axis] = pspace_boundary[move_axis]; // snap to boundary to reduce FPE
