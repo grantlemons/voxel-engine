@@ -88,7 +88,6 @@ impl Contree {
             let move_distance = max_t.abs().min_element();
 
             p += move_distance * norm_dir; // jump to boundary
-            // p[move_axis] = pspace_boundary[move_axis]; // snap to boundary to reduce FPE
 
             find_p = p + (dir_sign * 0.00001);
             i += 1;

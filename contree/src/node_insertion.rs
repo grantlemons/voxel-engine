@@ -159,7 +159,7 @@ mod tests {
         let bitflag = contree.inners[parent_address as usize].leaf;
         let leaf_index: ChildIndex = morton_index(
             morton_code(contree.normalize(p)),
-            MAX_MORTON_INDEX + 1 - contree.size.ilog(4) as u8,
+            MAX_MORTON_INDEX + 1 - (contree.size.ilog2() as u8 / 2),
         )
         .unwrap();
 
@@ -175,7 +175,7 @@ mod tests {
         let bitflag = contree.inners[parent_address as usize].leaf;
         let leaf_index: ChildIndex = morton_index(
             morton_code(contree.normalize(p)),
-            MAX_MORTON_INDEX + 1 - contree.size.ilog(4) as u8,
+            MAX_MORTON_INDEX + 1 - (contree.size.ilog2() as u8 / 2),
         )
         .unwrap();
 

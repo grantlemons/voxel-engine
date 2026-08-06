@@ -14,7 +14,7 @@ pub struct FindResult {
 impl Contree {
     pub fn find(&self, pos: Vec3) -> Option<FindResult> {
         let code = morton_code(self.normalize(pos));
-        let mut next_morton_index = MAX_MORTON_INDEX + 1 - (self.size.ilog(4) as u8);
+        let mut next_morton_index = MAX_MORTON_INDEX + 1 - (self.size.ilog2() as u8 / 2);
 
         let mut depth: u32 = 1;
         let mut parent_address: Addr = self.root?;

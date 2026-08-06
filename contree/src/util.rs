@@ -25,7 +25,7 @@ pub fn morton_index(code: u64, index: u8) -> Option<ChildIndex> {
 }
 
 pub fn round_in_dir(x: Vec3, dir: Vec3) -> Vec3 {
-    Vec3::select(dir.cmplt(Vec3::ZERO), (x - 0.5).ceil(), (x + 0.5).floor())
+    Vec3::select(dir.cmplt(Vec3::ZERO), x, x + 0.5).floor()
 }
 
 impl Contree {
@@ -34,11 +34,11 @@ impl Contree {
     }
 
     pub fn in_bounds(&self, p: Vec3) -> bool {
-        ((p - self.center_offset)
+        let res = (p - self.center_offset)
             .as_ivec3()
-            .map(|v| if v < 0 { -v - 1 } else { v })
-            .max_element() as u32)
-            < self.size / 2
+            .map(|v| if v < 0 { -v - 1 } else { v });
+        let cutoff = self.size / 2;
+        (res.x as u32) < cutoff && (res.y as u32) < cutoff && (res.z as u32) < cutoff
     }
 }
 
