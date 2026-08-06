@@ -25,7 +25,7 @@ pub fn morton_index(code: u64, index: u8) -> Option<ChildIndex> {
 }
 
 pub fn round_in_dir(x: Vec3, dir: Vec3) -> Vec3 {
-    Vec3::select(dir.cmplt(Vec3::ZERO), x, x + 0.5).floor()
+    Vec3::select(dir.cmplt(Vec3::ZERO), (x - 0.5).ceil(), (x + 0.5).floor())
 }
 
 impl Contree {
@@ -73,7 +73,12 @@ mod tests {
         assert_eq!(
             round_in_dir(Vec3::splat(0.5), Vec3::splat(-1.)),
             Vec3::splat(0.)
-        )
+        );
+
+        assert_eq!(
+            round_in_dir(Vec3::splat(0.), Vec3::splat(-1.)),
+            Vec3::splat(0.)
+        );
     }
 
     #[test]
@@ -81,7 +86,12 @@ mod tests {
         assert_eq!(
             round_in_dir(Vec3::splat(0.5), Vec3::splat(1.)),
             Vec3::splat(1.)
-        )
+        );
+
+        assert_eq!(
+            round_in_dir(Vec3::splat(0.), Vec3::splat(1.)),
+            Vec3::splat(0.)
+        );
     }
 
     #[test]
