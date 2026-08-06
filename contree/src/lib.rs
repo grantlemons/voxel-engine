@@ -6,7 +6,7 @@ mod gpu_binding;
 mod node_insertion;
 mod node_management;
 mod raycasting;
-mod util;
+pub mod util;
 
 use glam::Vec3;
 

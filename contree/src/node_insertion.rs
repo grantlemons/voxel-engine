@@ -5,20 +5,19 @@ use super::{Addr, ChildIndex, Contree, finding::FindResult, util::*};
 impl Contree {
     /// Grow upward until the position is in bounds
     fn grow_to_accomodate(&mut self, pos: Vec3) {
+        // ensures there is a root
         if self.root.is_none() {
             self.root = Some(self.create_root_node());
             self.center_offset = pos;
         }
 
-        while let Some(root) = self.root
-            && !self.in_bounds(pos)
-        {
+        while !self.in_bounds(pos) {
             let new_root = self.create_root_node();
 
             // TODO: Find a better way to grow
             let new_center = ((pos - self.center_offset) / self.size as f32)
                 .round()
-                .clamp(Vec3::splat(-3.), Vec3::splat(3.)) // clamp insures the current tree is enclosed
+                .clamp(-Vec3::splat(3.), Vec3::splat(3.)) // clamp insures the current tree is enclosed
                 * self.size as f32;
             let old_root_coords = self.center_offset;
             self.size *= 4;
@@ -32,7 +31,8 @@ impl Contree {
             .unwrap();
 
             // set current node as child of new node
-            self.inners[new_root as usize].children[old_root_new_index as usize] = root;
+            self.inners[new_root as usize].children[old_root_new_index as usize] =
+                self.root.unwrap();
             self.binding
                 .write_inner(new_root, &[self.inners[new_root as usize]]);
 

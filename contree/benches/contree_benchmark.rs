@@ -1,4 +1,5 @@
 use contree::Contree;
+use contree::util::{morton_code, round_in_dir};
 use criterion::{Criterion, criterion_group, criterion_main};
 use glam::Vec3;
 use std::hint::black_box;
@@ -46,5 +47,37 @@ fn raycast_benchmark(c: &mut Criterion) {
     c.bench_function("fan", |b| b.iter(|| fan(black_box(&contree))));
 }
 
-criterion_group!(benches, finding_benchmark, raycast_benchmark);
+fn util_benchmark(c: &mut Criterion) {
+    let contree = create_contree(16, Vec3::ZERO);
+
+    let normalized_point = contree.normalize(Vec3::ZERO);
+    c.bench_function("morton code", |b| {
+        b.iter(|| morton_code(black_box(normalized_point)))
+    });
+
+    let in_bounds_point = Vec3::ZERO;
+    c.bench_function("in bounds", |b| {
+        b.iter(|| contree.in_bounds(black_box(in_bounds_point)))
+    });
+
+    let out_of_bounds_point = Vec3::new(8., 0., 0.);
+    c.bench_function("out of bounds", |b| {
+        b.iter(|| contree.in_bounds(black_box(out_of_bounds_point)))
+    });
+
+    c.bench_function("normalize", |b| {
+        b.iter(|| contree.normalize(black_box(in_bounds_point)))
+    });
+
+    c.bench_function("round in dir", |b| {
+        b.iter(|| round_in_dir(in_bounds_point, Vec3::new(1., -1., 1.)))
+    });
+}
+
+criterion_group!(
+    benches,
+    finding_benchmark,
+    raycast_benchmark,
+    util_benchmark
+);
 criterion_main!(benches);

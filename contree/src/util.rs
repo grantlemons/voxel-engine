@@ -31,19 +31,13 @@ pub fn round_in_dir(x: Vec3, dir: Vec3) -> Vec3 {
 }
 
 impl Contree {
-    pub(super) fn normalize(&self, p: Vec3) -> UVec3 {
-        (p - self.center_offset + (self.size as f32 / 2.))
-            .round()
-            .as_uvec3()
+    pub fn normalize(&self, p: Vec3) -> UVec3 {
+        (p - self.center_offset + ((self.size + 1) as f32 / 2.)).as_uvec3()
     }
 
-    pub(super) fn in_bounds(&self, p: Vec3) -> bool {
-        fn svo_abs(v: f32) -> f32 {
-            if v < 0. { -v - 1. } else { v }
-        }
+    pub fn in_bounds(&self, p: Vec3) -> bool {
         (p - self.center_offset)
-            .map(svo_abs)
-            .round()
+            .map(|v| if v < 0. { -v - 1. } else { v })
             .as_uvec3()
             .max_element()
             < self.size / 2
