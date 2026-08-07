@@ -22,7 +22,7 @@ impl Contree {
         if !self.in_bounds(p) {
             let move_distance = [
                 self.center_offset + (self.size as f32) / 2. - 0.5,
-                -self.center_offset + (self.size as f32) / 2. - 0.5,
+                self.center_offset - (self.size as f32) / 2. - 0.5,
             ]
             .iter()
             .filter_map(|bound: &Vec3| {
@@ -46,23 +46,22 @@ impl Contree {
         Some(p)
     }
 
-    fn jump_to_bound(&self, p: Vec3, norm_dir: Vec3, dir_sign: Vec3, child_size: f32) -> Vec3 {
+    fn move_distance(&self, p: Vec3, inv_norm_dir: Vec3, dir_sign: Vec3, child_size: f32) -> f32 {
         let bspace_p = p + 0.5 - self.center_offset;
         let bspace_boundary =
             child_size * round_in_dir(bspace_p / child_size + dir_sign / 2., dir_sign);
         let pspace_boundary = bspace_boundary - 0.5 + self.center_offset;
 
         // Maximum t before hitting boundary on each axis
-        let max_t = (pspace_boundary - p) / norm_dir;
+        let max_t = (pspace_boundary - p) * inv_norm_dir;
 
         // WARN: May have platform-dependent behavior
-        let move_distance = max_t.abs().min_element();
-
-        move_distance * norm_dir
+        max_t.abs().min_element()
     }
 
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
         let norm_dir = dir.normalize();
+        let inv_norm_dir = 1. / norm_dir;
         let mut p = self.raycast_to_bounds(pos, norm_dir)?;
         let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
         let mut find_p = p + (dir_sign * 0.01);
@@ -86,12 +85,13 @@ impl Contree {
                 return Some(p);
             }
 
-            p += self.jump_to_bound(
-                p,
-                norm_dir,
-                dir_sign,
-                self.max_travel_distance(leaf_address, parent_address, node_size) as f32,
-            );
+            p += norm_dir
+                * self.move_distance(
+                    p,
+                    inv_norm_dir,
+                    dir_sign,
+                    self.max_travel_distance(leaf_address, parent_address, node_size) as f32,
+                );
 
             find_p = p + (dir_sign * 0.00001);
             i += 1;
@@ -140,8 +140,13 @@ mod tests {
         let contree = create_contree(64, Vec3::splat(0.));
 
         assert_eq!(
-            contree.raycast(Vec3::new(100., 50., 0.), Vec3::new(-2., -1., 0.)),
+            contree.raycast(Vec3::new(100., 50., 0.), -Vec3::new(2., 1., 0.)),
             Some(Vec3::new(0.5, 0.25, 0.))
+        );
+
+        assert_eq!(
+            contree.raycast(-Vec3::new(100., 50., 0.), Vec3::new(2., 1., 0.)),
+            Some(-Vec3::new(0.5, 0.25, 0.))
         );
     }
 
