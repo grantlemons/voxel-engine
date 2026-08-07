@@ -16,12 +16,10 @@ impl Contree {
         }
     }
 
-    fn raycast_to_bounds(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
+    fn raycast_to_bounds(&self, pos: Vec3, norm_dir: Vec3) -> Option<Vec3> {
         let mut p = pos;
 
         if !self.in_bounds(p) {
-            let norm_dir = dir.normalize();
-
             let move_distance = [
                 self.center_offset + (self.size as f32) / 2. - 0.5,
                 -self.center_offset + (self.size as f32) / 2. - 0.5,
@@ -49,7 +47,8 @@ impl Contree {
     }
 
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
-        let mut p = self.raycast_to_bounds(pos, dir)?;
+        let norm_dir = dir.normalize();
+        let mut p = self.raycast_to_bounds(pos, norm_dir)?;
         let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
         let mut find_p = p + (dir_sign * 0.01);
 
@@ -81,7 +80,6 @@ impl Contree {
             let pspace_boundary = bspace_boundary - 0.5 + self.center_offset;
 
             // Maximum t before hitting boundary on each axis
-            let norm_dir = dir.normalize();
             let max_t = (pspace_boundary - p) / norm_dir;
 
             // WARN: May have platform-dependent behavior
