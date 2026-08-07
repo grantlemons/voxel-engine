@@ -2,7 +2,7 @@ use super::{Addr, Contree, finding::FindResult, util::*};
 use glam::Vec3;
 
 impl Contree {
-    // When moving in a node, unless you know it has no children, you can only move 1/4 at a time
+    /// When moving in a node, unless you know it has no children, you can only move 1/4 at a time
     fn max_travel_distance(
         &self,
         leaf_address: Option<Addr>,
@@ -46,6 +46,21 @@ impl Contree {
         Some(p)
     }
 
+    fn jump_to_bound(&self, p: Vec3, norm_dir: Vec3, dir_sign: Vec3, child_size: f32) -> Vec3 {
+        let bspace_p = p + 0.5 - self.center_offset;
+        let bspace_boundary =
+            child_size * round_in_dir(bspace_p / child_size + dir_sign / 2., dir_sign);
+        let pspace_boundary = bspace_boundary - 0.5 + self.center_offset;
+
+        // Maximum t before hitting boundary on each axis
+        let max_t = (pspace_boundary - p) / norm_dir;
+
+        // WARN: May have platform-dependent behavior
+        let move_distance = max_t.abs().min_element();
+
+        move_distance * norm_dir
+    }
+
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
         let norm_dir = dir.normalize();
         let mut p = self.raycast_to_bounds(pos, norm_dir)?;
@@ -71,21 +86,12 @@ impl Contree {
                 return Some(p);
             }
 
-            let child_size =
-                self.max_travel_distance(leaf_address, parent_address, node_size) as f32;
-
-            let bspace_p = p + 0.5 - self.center_offset;
-            let bspace_boundary =
-                child_size * round_in_dir(bspace_p / child_size + dir_sign / 2., dir);
-            let pspace_boundary = bspace_boundary - 0.5 + self.center_offset;
-
-            // Maximum t before hitting boundary on each axis
-            let max_t = (pspace_boundary - p) / norm_dir;
-
-            // WARN: May have platform-dependent behavior
-            let move_distance = max_t.abs().min_element();
-
-            p += move_distance * norm_dir; // jump to boundary
+            p += self.jump_to_bound(
+                p,
+                norm_dir,
+                dir_sign,
+                self.max_travel_distance(leaf_address, parent_address, node_size) as f32,
+            );
 
             find_p = p + (dir_sign * 0.00001);
             i += 1;
