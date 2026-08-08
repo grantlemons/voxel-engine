@@ -49,21 +49,21 @@ impl Contree {
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
         let norm_dir = dir.normalize();
         let inv_norm_dir = norm_dir.recip();
-        let mut p = self.raycast_to_bounds(pos, norm_dir)?;
+        let mut p = self.raycast_to_bounds(pos, norm_dir)? + 0.5 - self.center_offset;
         let dir_pos = dir
             .map(|v| if v == 0. { 0. } else { v.signum() })
             .max(Vec3::ZERO);
         let mut find_p = p + (norm_dir * 0.00001);
 
         let mut i = 0;
-        while self.in_bounds(find_p) && i < 50 {
+        while self.in_bounds(find_p - 0.5 + self.center_offset) && i < 50 {
             let FindResult {
                 leaf_address,
                 parent_address,
                 traversal_state: (code, next_morton_index),
                 node_size,
                 ..
-            } = self.find(find_p)?;
+            } = self.find(find_p - 0.5 + self.center_offset)?;
 
             // break if hit solid
             if let Some(laddr) = leaf_address
@@ -71,17 +71,15 @@ impl Contree {
                 && self.leaves[laddr as usize].contains & (0b1 << cidx) != 0
                 && self.leaves[laddr as usize].children[cidx as usize] != 0
             {
-                return Some(p);
+                return Some(p - 0.5 + self.center_offset);
             }
 
             let child_size =
                 self.max_travel_distance(leaf_address, parent_address, node_size) as f32;
-            let bspace_p = find_p + 0.5 - self.center_offset;
-            let bspace_boundary = child_size * ((bspace_p / child_size).floor() + dir_pos);
-            let pspace_boundary = bspace_boundary - 0.5 + self.center_offset;
+            let boundary = child_size * ((find_p / child_size).floor() + dir_pos);
 
             // Maximum t before hitting boundary on each axis
-            let max_t = (pspace_boundary - p) * inv_norm_dir;
+            let max_t = (boundary - p) * inv_norm_dir;
 
             // WARN: May have platform-dependent behavior
             p += max_t.abs().min_element() * norm_dir;
