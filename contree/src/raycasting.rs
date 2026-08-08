@@ -1,21 +1,7 @@
-use super::{Addr, Contree, finding::FindResult, util::*};
+use super::{Contree, finding::FindResult, util::*};
 use glam::Vec3;
 
 impl Contree {
-    /// When moving in a node, unless you know it has no children, you can only move 1/4 at a time
-    fn max_travel_distance(
-        &self,
-        leaf_address: Option<Addr>,
-        parent_address: Addr,
-        node_size: u32,
-    ) -> u32 {
-        if leaf_address.is_none() && self.inners[parent_address as usize].contains == 0 {
-            node_size
-        } else {
-            node_size >> 2
-        }
-    }
-
     fn raycast_to_bounds(&self, pos: Vec3, norm_dir: Vec3) -> Option<Vec3> {
         let mut p = pos;
 
@@ -74,8 +60,13 @@ impl Contree {
                 return Some(p - 0.5 + self.center_offset);
             }
 
+            // When moving in a node, unless you know it has no children, you can only move 1/4 at a time
             let child_size =
-                self.max_travel_distance(leaf_address, parent_address, node_size) as f32;
+                if leaf_address.is_some() || self.inners[parent_address as usize].contains != 0 {
+                    node_size >> 2
+                } else {
+                    node_size
+                } as f32;
             let boundary = child_size * ((find_p / child_size).floor() + dir_pos);
 
             // Maximum t before hitting boundary on each axis

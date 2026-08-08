@@ -68,7 +68,9 @@ mod tests {
     fn contains_skews_negative() {
         let contree = Contree::default();
 
-        assert!(contree.in_bounds(Vec3::splat(-8.)));
-        assert!(!contree.in_bounds(Vec3::splat(8.)));
+        assert!(contree.in_bounds(Vec3::splat(-8.5)));
+        assert!(contree.in_bounds(Vec3::splat(7.5)));
+        assert!(!contree.in_bounds(Vec3::splat(8.5)));
+        assert!(!contree.in_bounds(Vec3::splat(-9.)));
     }
 }
