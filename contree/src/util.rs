@@ -24,10 +24,6 @@ pub fn morton_index(code: u64, index: u8) -> Option<ChildIndex> {
     }
 }
 
-pub fn round_in_dir(x: Vec3, dir: Vec3) -> Vec3 {
-    Vec3::select(dir.cmplt(Vec3::ZERO), (x - 0.5).ceil(), (x + 0.5).floor())
-}
-
 impl Contree {
     pub fn normalize(&self, p: Vec3) -> UVec3 {
         (p - self.center_offset + ((self.size + 1) as f32 / 2.)).as_uvec3()
@@ -66,32 +62,6 @@ mod tests {
 
         assert_eq!(code, 0);
         assert_eq!(traversal_iter.collect::<Vec<_>>(), &[0, 0, 0]);
-    }
-
-    #[test]
-    fn round_down() {
-        assert_eq!(
-            round_in_dir(Vec3::splat(0.5), Vec3::splat(-1.)),
-            Vec3::splat(0.)
-        );
-
-        assert_eq!(
-            round_in_dir(Vec3::splat(0.), Vec3::splat(-1.)),
-            Vec3::splat(0.)
-        );
-    }
-
-    #[test]
-    fn round_up() {
-        assert_eq!(
-            round_in_dir(Vec3::splat(0.5), Vec3::splat(1.)),
-            Vec3::splat(1.)
-        );
-
-        assert_eq!(
-            round_in_dir(Vec3::splat(0.), Vec3::splat(1.)),
-            Vec3::splat(0.)
-        );
     }
 
     #[test]

@@ -46,25 +46,14 @@ impl Contree {
         Some(p)
     }
 
-    fn move_distance(&self, p: Vec3, inv_norm_dir: Vec3, dir_sign: Vec3, child_size: f32) -> f32 {
-        let bspace_p = p + 0.5 - self.center_offset;
-        let bspace_boundary =
-            child_size * round_in_dir(bspace_p / child_size + dir_sign / 2., dir_sign);
-        let pspace_boundary = bspace_boundary - 0.5 + self.center_offset;
-
-        // Maximum t before hitting boundary on each axis
-        let max_t = (pspace_boundary - p) * inv_norm_dir;
-
-        // WARN: May have platform-dependent behavior
-        max_t.abs().min_element()
-    }
-
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
         let norm_dir = dir.normalize();
-        let inv_norm_dir = 1. / norm_dir;
+        let inv_norm_dir = norm_dir.recip();
         let mut p = self.raycast_to_bounds(pos, norm_dir)?;
-        let dir_sign = dir.map(|v| if v == 0. { 0. } else { v.signum() });
-        let mut find_p = p + (dir_sign * 0.01);
+        let dir_pos = dir
+            .map(|v| if v == 0. { 0. } else { v.signum() })
+            .max(Vec3::ZERO);
+        let mut find_p = p + (norm_dir * 0.00001);
 
         let mut i = 0;
         while self.in_bounds(find_p) && i < 50 {
@@ -85,15 +74,19 @@ impl Contree {
                 return Some(p);
             }
 
-            p += norm_dir
-                * self.move_distance(
-                    p,
-                    inv_norm_dir,
-                    dir_sign,
-                    self.max_travel_distance(leaf_address, parent_address, node_size) as f32,
-                );
+            let child_size =
+                self.max_travel_distance(leaf_address, parent_address, node_size) as f32;
+            let bspace_p = find_p + 0.5 - self.center_offset;
+            let bspace_boundary = child_size * ((bspace_p / child_size).floor() + dir_pos);
+            let pspace_boundary = bspace_boundary - 0.5 + self.center_offset;
 
-            find_p = p + (dir_sign * 0.00001);
+            // Maximum t before hitting boundary on each axis
+            let max_t = (pspace_boundary - p) * inv_norm_dir;
+
+            // WARN: May have platform-dependent behavior
+            p += max_t.abs().min_element() * norm_dir;
+
+            find_p = p + (norm_dir * 0.00001);
             i += 1;
         }
         None

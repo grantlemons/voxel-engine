@@ -1,5 +1,5 @@
 use contree::Contree;
-use contree::util::{morton_code, round_in_dir};
+use contree::util::morton_code;
 use criterion::{Criterion, criterion_group, criterion_main};
 use glam::Vec3;
 use std::hint::black_box;
@@ -67,10 +67,6 @@ fn util_benchmark(c: &mut Criterion) {
 
     c.bench_function("normalize", |b| {
         b.iter(|| contree.normalize(black_box(in_bounds_point)))
-    });
-
-    c.bench_function("round in dir", |b| {
-        b.iter(|| round_in_dir(in_bounds_point, Vec3::new(1., -1., 1.)))
     });
 }
 
