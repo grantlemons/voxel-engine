@@ -2,45 +2,25 @@ use super::{Contree, finding::FindResult, util::*};
 use glam::Vec3;
 
 impl Contree {
-    fn raycast_to_bounds(&self, pos: Vec3, norm_dir: Vec3) -> Option<Vec3> {
-        let mut p = pos;
-
-        if !self.in_bounds(p) {
-            let move_distance = [
-                self.center_offset + (self.size as f32) / 2. - 0.5,
-                self.center_offset - (self.size as f32) / 2. - 0.5,
-            ]
-            .iter()
-            .filter_map(|bound: &Vec3| {
-                let max_t = (bound - p) / norm_dir;
-
-                // Maximum element of max_t, ignoring inf, -inf, and NaN values
-                // This should find the outside bound of the tree
-                max_t
-                    .to_array()
-                    .into_iter()
-                    .filter(|&x| f32::is_normal(x))
-                    .filter(|&x| f32::is_sign_positive(x))
-                    .reduce(f32::max)
-            })
-            // Pick the closer bound to move to
-            .reduce(f32::min);
-
-            p += move_distance? * norm_dir;
-        }
-
-        Some(p)
-    }
-
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
         let norm_dir = dir.normalize();
         let inv_norm_dir = norm_dir.recip();
-        let mut p = self.raycast_to_bounds(pos, norm_dir)? + 0.5 - self.center_offset;
+        let mut p = pos + 0.5 - self.center_offset;
         let dir_pos = dir
             .map(|v| if v == 0. { 0. } else { v.signum() })
             .max(Vec3::ZERO);
-        let mut find_p = p + (norm_dir * 0.00001);
 
+        if !self.in_bounds(p - 0.5 + self.center_offset) {
+            let boundary = Vec3::splat((self.size / 2) as f32) * p.signum();
+            p += ((boundary - p) * inv_norm_dir)
+                .to_array()
+                .into_iter()
+                .filter(|x| x.is_normal())
+                .reduce(f32::max)?
+                * norm_dir;
+        }
+
+        let mut find_p = p + (norm_dir * 0.00001);
         let mut i = 0;
         while self.in_bounds(find_p - 0.5 + self.center_offset) && i < 50 {
             let FindResult {
