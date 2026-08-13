@@ -21,8 +21,7 @@ impl Contree {
         }
 
         let mut find_p = p + (norm_dir * 0.00001);
-        let mut i = 0;
-        while self.in_bounds(find_p - 0.5 + self.center_offset) && i < 50 {
+        while self.in_bounds(find_p - 0.5 + self.center_offset) {
             let FindResult {
                 leaf_address,
                 parent_address,
@@ -56,7 +55,6 @@ impl Contree {
             p += max_t.abs().min_element() * norm_dir;
 
             find_p = p + (norm_dir * 0.00001);
-            i += 1;
         }
         None
     }
