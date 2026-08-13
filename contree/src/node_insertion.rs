@@ -85,7 +85,7 @@ impl Contree {
             leaf_address,
             parent_address,
             traversal_state: (code, next_morton_index), // this might need to be the prev traversal iter
-            node_size: 1,
+            depth: self.size.ilog(4) as u8,
         })
     }
 

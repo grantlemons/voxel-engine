@@ -27,7 +27,7 @@ impl Contree {
                 leaf_address,
                 parent_address,
                 traversal_state: (code, next_morton_index),
-                node_size,
+                depth,
                 ..
             } = self.find(find_p - 0.5 + self.center_offset)?;
 
@@ -43,9 +43,9 @@ impl Contree {
             // When moving in a node, unless you know it has no children, you can only move 1/4 at a time
             let child_size =
                 if leaf_address.is_some() || self.inners[parent_address as usize].contains != 0 {
-                    node_size >> 2
+                    self.size >> ((depth + 1) << 1)
                 } else {
-                    node_size
+                    self.size >> (depth << 1)
                 } as f32;
             let boundary = child_size * ((find_p / child_size).floor() + dir_pos);
 
