@@ -9,7 +9,7 @@ bitflags::bitflags! {
     }
 }
 
-impl Contree {
+impl Contree<'_> {
     pub(super) fn create_root_node(&mut self) -> Addr {
         let new_node = ContreeInner {
             contains: 0,

@@ -10,7 +10,7 @@ pub struct FindResult {
     pub depth: u8,
 }
 
-impl Contree {
+impl Contree<'_> {
     pub fn find(&self, pos: Vec3) -> Option<FindResult> {
         let code = morton_code(self.normalize(pos));
         let mut next_morton_index = MAX_MORTON_INDEX + 1 - (self.size.ilog2() as u8 / 2);
@@ -68,7 +68,7 @@ mod tests {
 
     use super::*;
 
-    fn create_contree(size: u32, p: Vec3) -> Contree {
+    fn create_contree(size: u32, p: Vec3) -> Contree<'static> {
         assert!(size > 4, "The root node cannot be a leaf!");
         let mut contree = Contree {
             size,

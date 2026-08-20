@@ -2,7 +2,6 @@ use bytemuck::{Pod, Zeroable};
 use serde::{Deserialize, Serialize};
 
 mod finding;
-mod gpu_binding;
 mod node_insertion;
 mod node_management;
 mod raycasting;
@@ -10,7 +9,17 @@ pub mod util;
 
 use glam::Vec3;
 
-pub use gpu_binding::*;
+pub trait GPUBindable: std::fmt::Debug {
+    fn write_inner(&self, addr: Addr, data: &[ContreeInner]);
+    fn write_leaf(&self, addr: Addr, data: &[ContreeLeaf]);
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DummyBinding;
+impl GPUBindable for DummyBinding {
+    fn write_inner(&self, _: Addr, _: &[ContreeInner]) {}
+    fn write_leaf(&self, _: Addr, _: &[ContreeLeaf]) {}
+}
 
 // 80 bytes
 #[repr(C, align(4))]
@@ -48,7 +57,7 @@ type ChildIndex = u8;
 pub type Addr = u32;
 
 #[derive(Debug)]
-pub struct Contree {
+pub struct Contree<'a> {
     pub center_offset: Vec3,
     pub root: Option<Addr>,
     /// Distance from face to face
@@ -57,17 +66,17 @@ pub struct Contree {
     pub leaves: Vec<ContreeLeaf>,
     pub inner_tombstones: Vec<Addr>,
     pub leaf_tombstones: Vec<Addr>,
-    pub binding: Box<dyn GPUBindable>,
+    pub binding: &'a dyn GPUBindable,
 }
 
-impl Default for Contree {
+impl Default for Contree<'_> {
     fn default() -> Self {
-        Self::new(Box::new(DummyBinding))
+        Self::new(&DummyBinding)
     }
 }
 
-impl Contree {
-    pub fn new(binding: Box<dyn GPUBindable>) -> Self {
+impl<'a> Contree<'a> {
+    pub fn new(binding: &'a dyn GPUBindable) -> Self {
         let mut new = Self {
             center_offset: Default::default(),
             root: None,
@@ -83,7 +92,7 @@ impl Contree {
     }
 }
 
-impl std::fmt::Display for Contree {
+impl std::fmt::Display for Contree<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(root) = self.root {
             let mut stack = vec![root];

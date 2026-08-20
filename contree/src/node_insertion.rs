@@ -2,7 +2,7 @@ use glam::Vec3;
 
 use super::{Addr, ChildIndex, Contree, finding::FindResult, util::*};
 
-impl Contree {
+impl Contree<'_> {
     /// Grow upward until the position is in bounds
     fn grow_to_accomodate(&mut self, pos: Vec3) {
         // ensures there is a root
@@ -115,7 +115,7 @@ mod tests {
     use super::*;
     use crate::ContreeInner;
 
-    fn create_contree(size: u32, p: Vec3) -> Contree {
+    fn create_contree(size: u32, p: Vec3) -> Contree<'static> {
         assert!(size > 4, "The root node cannot be a leaf!");
         let mut contree = Contree {
             size,

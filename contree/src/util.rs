@@ -24,7 +24,7 @@ pub fn morton_index(code: u64, index: u8) -> Option<ChildIndex> {
     }
 }
 
-impl Contree {
+impl Contree<'_> {
     pub fn normalize(&self, p: Vec3) -> UVec3 {
         (p - self.center_offset + ((self.size + 1) as f32 / 2.)).as_uvec3()
     }

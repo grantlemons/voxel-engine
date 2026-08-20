@@ -1,7 +1,7 @@
 use super::{Contree, finding::FindResult, util::*};
 use glam::Vec3;
 
-impl Contree {
+impl Contree<'_> {
     pub fn raycast(&self, pos: Vec3, dir: Vec3) -> Option<Vec3> {
         let norm_dir = dir.normalize();
         let inv_norm_dir = norm_dir.recip();
@@ -64,7 +64,7 @@ impl Contree {
 mod tests {
     use super::*;
 
-    fn create_contree(size: u32, p: Vec3) -> Contree {
+    fn create_contree(size: u32, p: Vec3) -> Contree<'static> {
         assert!(size > 4, "The root node cannot be a leaf!");
         let mut contree = Contree {
             size,
