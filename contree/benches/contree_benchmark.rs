@@ -4,7 +4,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use glam::Vec3;
 use std::hint::black_box;
 
-fn create_contree(size: u32, p: Vec3) -> Contree {
+fn create_contree(size: u32, p: Vec3) -> Contree<'static> {
     assert!(size > 4, "The root node cannot be a leaf!");
     let mut contree = Contree {
         size,
@@ -15,13 +15,15 @@ fn create_contree(size: u32, p: Vec3) -> Contree {
 }
 
 fn finding_benchmark(c: &mut Criterion) {
-    let p = Vec3::ZERO;
-    let mut contree = create_contree(4u32.pow(8), Vec3::splat(5.));
+    let p = Vec3::splat(5.);
+    let z = Vec3::ZERO;
+    let mut contree = create_contree(4u32.pow(8), p);
 
-    c.bench_function("find empty", |b| b.iter(|| contree.find(black_box(p))));
+    c.bench_function("find empty", |b| b.iter(|| contree.find(black_box(z))));
+    c.bench_function("find present", |b| b.iter(|| contree.find(black_box(p))));
 
     c.bench_function("insert", |b| {
-        b.iter(|| contree.insert(black_box(p), black_box(0)))
+        b.iter(|| contree.insert(black_box(z), black_box(0)))
     });
 }
 
